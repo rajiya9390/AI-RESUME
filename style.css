@@ -225,6 +225,57 @@ textarea:focus {
     color: var(--color-text-secondary);
 }
 
+/* TEMPLATE TABS */
+.template-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 8px;
+    background: var(--color-muted);
+    border-radius: var(--border-radius);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.tab-btn.active {
+    background: var(--color-white);
+    color: var(--color-text-primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* BULLET GUIDANCE */
+.bullet-guide {
+    font-size: 11px;
+    font-weight: 600;
+    color: #D93025;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bullet-guide.passed {
+    color: var(--color-text-secondary);
+}
+
+.btn-remove-entry {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* ATS SCORE PANEL */
 .score-card {
     background: var(--color-white);
@@ -366,6 +417,66 @@ textarea:focus {
     gap: 8px;
     font-family: var(--font-sans);
     font-size: 13px;
+}
+
+/* TEMPLATE OVERRIDES */
+.resume-paper.template-classic {
+    font-family: var(--font-serif);
+}
+
+.resume-paper.template-modern {
+    font-family: var(--font-sans);
+}
+
+.resume-paper.template-modern .resume-header {
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    border-bottom: 2px solid var(--color-text-primary);
+    padding-bottom: 16px;
+}
+
+.resume-paper.template-modern .resume-contact {
+    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.resume-paper.template-modern .resume-section-title {
+    background: var(--color-text-primary);
+    color: var(--color-white);
+    padding: 4px 12px;
+    border: none;
+}
+
+.resume-paper.template-minimal {
+    font-family: var(--font-sans);
+    padding: var(--space-xl) var(--space-l);
+}
+
+.resume-paper.template-minimal .resume-header {
+    text-align: left;
+    margin-bottom: var(--space-l);
+}
+
+.resume-paper.template-minimal .resume-header h1 {
+    font-size: 24px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+}
+
+.resume-paper.template-minimal .resume-contact {
+    justify-content: flex-start;
+    margin-top: 8px;
+}
+
+.resume-paper.template-minimal .resume-section-title {
+    border: none;
+    border-left: 3px solid var(--color-text-primary);
+    padding-left: 12px;
+    margin-bottom: 16px;
 }
 
 .toast-container {
