@@ -1,6 +1,6 @@
 /**
- * AI Resume Builder - Intelligence Layer v1.0
- * Pure Layout Skeleton & Dynamic Data Sync
+ * AI Resume Builder - Intelligence Layer v1.2
+ * Autosave + ATS Scoring v1 (Deterministic)
  */
 
 const App = {
@@ -17,13 +17,28 @@ const App = {
 
     init() {
         this.cacheDOM();
+        this.loadFromStorage();
         this.bindEvents();
         this.handleInitialRoute();
     },
 
     cacheDOM() {
         this.root = document.getElementById('app-root');
-        this.navLinks = document.querySelectorAll('.nav-link');
+    },
+
+    loadFromStorage() {
+        const saved = localStorage.getItem('resumeBuilderData');
+        if (saved) {
+            try {
+                this.state = JSON.parse(saved);
+            } catch (e) {
+                console.error("Error loading state", e);
+            }
+        }
+    },
+
+    saveToStorage() {
+        localStorage.setItem('resumeBuilderData', JSON.stringify(this.state));
     },
 
     bindEvents() {
@@ -34,18 +49,20 @@ const App = {
                 this.navigate(link.getAttribute('href'));
             }
 
-            // Builder Actions
             if (e.target.id === 'load-sample') this.loadSampleData();
             if (e.target.matches('.btn-add-edu')) this.addEntry('education');
             if (e.target.matches('.btn-add-exp')) this.addEntry('experience');
             if (e.target.matches('.btn-add-proj')) this.addEntry('projects');
+            if (e.target.matches('.btn-remove-entry')) this.removeEntry(e.target.dataset.type, e.target.dataset.index);
         });
 
-        // Live Sync for the Builder
+        // Live Sync
         document.addEventListener('input', (e) => {
             if (window.location.pathname === '/builder') {
                 this.syncFormToState();
+                this.saveToStorage();
                 this.renderLivePreview();
+                this.updateScorePanel();
             }
         });
 
@@ -81,7 +98,115 @@ const App = {
         });
     },
 
-    // --- PAGE RENDERERS ---
+    // --- LOGIC ---
+
+    addEntry(type) {
+        const entry = { id: Date.now() };
+        if (type === 'education') { entry.school = ''; entry.degree = ''; entry.date = ''; }
+        if (type === 'experience') { entry.company = ''; entry.role = ''; entry.desc = ''; }
+        if (type === 'projects') { entry.name = ''; entry.desc = ''; }
+
+        this.state[type].push(entry);
+        this.saveToStorage();
+        this.renderBuilder();
+    },
+
+    removeEntry(type, index) {
+        this.state[type].splice(index, 1);
+        this.saveToStorage();
+        this.renderBuilder();
+    },
+
+    syncFormToState() {
+        // Personal and Links
+        const personalFields = this.root.querySelectorAll('[data-field^="personal."]');
+        personalFields.forEach(f => {
+            const key = f.getAttribute('data-field').split('.')[1];
+            this.state.personal[key] = f.value;
+        });
+
+        const linkFields = this.root.querySelectorAll('[data-field^="links."]');
+        linkFields.forEach(f => {
+            const key = f.getAttribute('data-field').split('.')[1];
+            this.state.links[key] = f.value;
+        });
+
+        // Summary and Skills
+        this.state.summary = this.root.querySelector('[data-field="summary"]')?.value || '';
+        this.state.skills = this.root.querySelector('[data-field="skills"]')?.value || '';
+
+        // Dynamic Entries
+        ['education', 'experience', 'projects'].forEach(type => {
+            const containers = this.root.querySelectorAll(`[data-entry-type="${type}"]`);
+            this.state[type] = Array.from(containers).map(container => {
+                const data = {};
+                container.querySelectorAll('[data-subfield]').forEach(input => {
+                    data[input.getAttribute('data-subfield')] = input.value;
+                });
+                return data;
+            });
+        });
+    },
+
+    calculateATSScore() {
+        let score = 0;
+        const { personal, summary, education, experience, projects, skills, links } = this.state;
+
+        // 1. Summary Length (40-120 words)
+        const wordCount = summary.trim().split(/\s+/).filter(w => w).length;
+        if (wordCount >= 40 && wordCount <= 120) score += 15;
+
+        // 2. Projects (At least 2)
+        if (projects.length >= 2) score += 10;
+
+        // 3. Experience (At least 1)
+        if (experience.length >= 1) score += 10;
+
+        // 4. Skills (At least 8)
+        const skillCount = skills.split(',').map(s => s.trim()).filter(s => s).length;
+        if (skillCount >= 8) score += 10;
+
+        // 5. Links
+        if (links.github || links.linkedin) score += 10;
+
+        // 6. Measurable Impact (Numbers in exp/proj)
+        const hasNumbers = [...experience, ...projects].some(p => {
+            const text = (p.desc || '').toLowerCase();
+            return /[0-9]+|%|k|m|x/.test(text); // Basic number detection
+        });
+        if (hasNumbers) score += 15;
+
+        // 7. Education Completeness
+        const eduComplete = education.length > 0 && education.every(e => e.school && e.degree);
+        if (eduComplete) score += 10;
+
+        return {
+            total: Math.min(score, 100),
+            checks: {
+                summary: wordCount >= 40 && wordCount <= 120,
+                projects: projects.length >= 2,
+                experience: experience.length >= 1,
+                skills: skillCount >= 8,
+                links: !!(links.github || links.linkedin),
+                impact: hasNumbers,
+                education: eduComplete
+            }
+        };
+    },
+
+    getSuggestions(checks) {
+        const suggestions = [];
+        if (!checks.experience) suggestions.push("Add at least 1 work experience entry.");
+        if (!checks.projects) suggestions.push("Add at least 2 projects.");
+        if (!checks.impact) suggestions.push("Add measurable impact (numbers, %, k) to your bullets.");
+        if (!checks.summary) suggestions.push("Write a stronger summary (40–120 words).");
+        if (!checks.skills) suggestions.push("Add more skills (target 8+).");
+        if (!checks.links) suggestions.push("Add GitHub or LinkedIn links.");
+
+        return suggestions.slice(0, 3);
+    },
+
+    // --- RENDERERS ---
 
     renderHome() {
         this.root.innerHTML = `
@@ -101,55 +226,49 @@ const App = {
                 <div class="form-panel">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
                         <h2 class="serif">Resume Builder</h2>
-                        <button class="btn btn-secondary" id="load-sample" style="font-size: 13px; padding: 8px 16px;">Load Sample Data</button>
+                        <button class="btn btn-secondary" id="load-sample" style="font-size: 11px;">Load Sample Data</button>
                     </div>
 
                     <!-- Personal Info -->
                     <div class="form-section">
                         <h3 class="section-title">Personal Information</h3>
-                        <div class="input-group">
-                            <label class="input-label">Full Name</label>
-                            <input type="text" data-field="personal.name" placeholder="John Doe">
-                        </div>
+                        <div class="input-group"><label class="input-label">Full Name</label><input type="text" data-field="personal.name" placeholder="John Doe"></div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                             <div class="input-group"><label class="input-label">Email</label><input type="email" data-field="personal.email"></div>
                             <div class="input-group"><label class="input-label">Phone</label><input type="tel" data-field="personal.phone"></div>
                         </div>
-                        <div class="input-group">
-                            <label class="input-label">Location</label>
-                            <input type="text" data-field="personal.location" placeholder="City, State">
-                        </div>
+                        <div class="input-group"><label class="input-label">Location</label><input type="text" data-field="personal.location" placeholder="San Francisco, CA"></div>
                     </div>
 
                     <!-- Summary -->
                     <div class="form-section">
-                        <h3 class="section-title">Professional Summary</h3>
-                        <textarea data-field="summary" rows="4" placeholder="Brief overview of your career and goals..."></textarea>
+                        <h3 class="section-title">Summary</h3>
+                        <textarea data-field="summary" rows="4" placeholder="40-120 words for best ATS results..."></textarea>
                     </div>
 
                     <!-- Education -->
                     <div class="form-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Education</h3>
-                            <button class="btn-ghost btn-add-edu">+ Add Entry</button>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--color-border);">
+                            <h3 class="section-title" style="border:none; margin:0;">Education</h3>
+                            <button class="btn-ghost btn-add-edu">+ Add</button>
                         </div>
                         <div id="education-entries"></div>
                     </div>
 
                     <!-- Experience -->
                     <div class="form-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Experience</h3>
-                            <button class="btn-ghost btn-add-exp">+ Add Entry</button>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--color-border);">
+                            <h3 class="section-title" style="border:none; margin:0;">Experience</h3>
+                            <button class="btn-ghost btn-add-exp">+ Add</button>
                         </div>
                         <div id="experience-entries"></div>
                     </div>
 
                     <!-- Projects -->
                     <div class="form-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Projects</h3>
-                            <button class="btn-ghost btn-add-proj">+ Add Entry</button>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--color-border);">
+                            <h3 class="section-title" style="border:none; margin:0;">Projects</h3>
+                            <button class="btn-ghost btn-add-proj">+ Add</button>
                         </div>
                         <div id="projects-entries"></div>
                     </div>
@@ -157,7 +276,7 @@ const App = {
                     <!-- Skills -->
                     <div class="form-section">
                         <h3 class="section-title">Skills</h3>
-                        <input type="text" data-field="skills" placeholder="React, Node.js, Python...">
+                        <input type="text" data-field="skills" placeholder="React, Python, SQL (comma separated)...">
                     </div>
 
                     <!-- Links -->
@@ -171,75 +290,47 @@ const App = {
                 </div>
 
                 <div class="preview-panel">
-                    <div id="live-preview-container">
-                        <!-- Resume Layout Shell -->
+                    <div style="width: 100%; max-width: 600px;">
+                        <!-- SCORE PANEL -->
+                        <div id="score-panel-root"></div>
+
+                        <div id="live-preview-container"></div>
                     </div>
                 </div>
             </div>
         `;
-        this.renderLivePreview();
         this.populateFormFromState();
+        this.renderLivePreview();
+        this.updateScorePanel();
     },
 
-    renderCleanPreview() {
-        this.root.innerHTML = `
-            <div style="padding: var(--space-xl) var(--space-m); display: flex; justify-content: center; background: #fff;">
-                <div class="resume-paper clean">
-                    ${this.generateResumeHTML()}
+    updateScorePanel() {
+        const root = document.getElementById('score-panel-root');
+        if (!root) return;
+
+        const scoreData = this.calculateATSScore();
+        const suggestions = this.getSuggestions(scoreData.checks);
+
+        root.innerHTML = `
+            <div class="score-card">
+                <div class="score-header">
+                    <span class="score-label">ATS Readiness Score</span>
+                    <span class="score-value">${scoreData.total}%</span>
                 </div>
+                <div class="score-bar-bg">
+                    <div class="score-bar-fill" style="width: ${scoreData.total}%"></div>
+                </div>
+                ${suggestions.length ? `
+                    <ul class="suggestions-list">
+                        ${suggestions.map(s => `<li class="suggestion-item">${s}</li>`).join('')}
+                    </ul>
+                ` : '<p style="font-size: 13px; color: var(--color-success); font-weight: 600;">✓ Looking Great!</p>'}
             </div>
         `;
     },
 
-    renderProof() {
-        this.root.innerHTML = `<section class="hero-section"><h1>Project Proof</h1><p class="subtext">Verification and artifacts placeholder.</p></section>`;
-    },
-
-    // --- LOGIC ---
-
-    addEntry(type) {
-        const entry = { id: Date.now() };
-        if (type === 'education') entry.school = '';
-        if (type === 'experience') entry.company = '';
-        if (type === 'projects') entry.name = '';
-
-        this.state[type].push(entry);
-        this.renderBuilder();
-    },
-
-    syncFormToState() {
-        const inputs = this.root.querySelectorAll('[data-field]');
-        inputs.forEach(input => {
-            const field = input.getAttribute('data-field');
-            const value = input.value;
-
-            if (field.includes('.')) {
-                const [obj, key] = field.split('.');
-                this.state[obj][key] = value;
-            } else {
-                this.state[field] = value;
-            }
-        });
-
-        // Sync Dynamic Entries
-        this.syncDynamicEntries('education');
-        this.syncDynamicEntries('experience');
-        this.syncDynamicEntries('projects');
-    },
-
-    syncDynamicEntries(type) {
-        const containers = this.root.querySelectorAll(`[data-entry-type="${type}"]`);
-        this.state[type] = Array.from(containers).map(container => {
-            const data = {};
-            container.querySelectorAll('[data-subfield]').forEach(input => {
-                data[input.getAttribute('data-subfield')] = input.value;
-            });
-            return data;
-        });
-    },
-
     populateFormFromState() {
-        // Simple fields
+        // Individual fields
         this.root.querySelectorAll('[data-field]').forEach(input => {
             const field = input.getAttribute('data-field');
             if (field.includes('.')) {
@@ -250,11 +341,11 @@ const App = {
             }
         });
 
-        // Dynamic Entries
+        // Loop sections
         ['education', 'experience', 'projects'].forEach(type => {
             const container = document.getElementById(`${type}-entries`);
             if (container) {
-                container.innerHTML = this.state[type].map((entry, i) => this.renderEntryForm(type, entry, i)).join('');
+                container.innerHTML = (this.state[type] || []).map((entry, i) => this.renderEntryForm(type, entry, i)).join('');
             }
         });
     },
@@ -263,86 +354,123 @@ const App = {
         let fields = '';
         if (type === 'education') {
             fields = `
-                <div class="input-group"><label class="input-label">School</label><input type="text" data-subfield="school" value="${entry.school || ''}"></div>
-                <div class="input-group"><label class="input-label">Degree</label><input type="text" data-subfield="degree" value="${entry.degree || ''}"></div>
+                <div class="input-group"><input type="text" data-subfield="school" placeholder="University Name" value="${entry.school || ''}"></div>
+                <div class="input-group"><input type="text" data-subfield="degree" placeholder="Degree" value="${entry.degree || ''}"></div>
             `;
         } else if (type === 'experience') {
             fields = `
-                <div class="input-group"><label class="input-label">Company</label><input type="text" data-subfield="company" value="${entry.company || ''}"></div>
-                <div class="input-group"><label class="input-label">Role</label><input type="text" data-subfield="role" value="${entry.role || ''}"></div>
+                <div class="input-group"><input type="text" data-subfield="company" placeholder="Company Name" value="${entry.company || ''}"></div>
+                <div class="input-group"><input type="text" data-subfield="role" placeholder="Role" value="${entry.role || ''}"></div>
+                <textarea data-subfield="desc" placeholder="Responsibilities (include numbers like 20% improvement...)" rows="3">${entry.desc || ''}</textarea>
             `;
         } else {
             fields = `
-                <div class="input-group"><label class="input-label">Project Name</label><input type="text" data-subfield="name" value="${entry.name || ''}"></div>
-                <textarea data-subfield="desc" placeholder="Project description...">${entry.desc || ''}</textarea>
+                <div class="input-group"><input type="text" data-subfield="name" placeholder="Project Name" value="${entry.name || ''}"></div>
+                <textarea data-subfield="desc" placeholder="Overview (mention metrics if possible)" rows="2">${entry.desc || ''}</textarea>
             `;
         }
 
-        return `<div class="entry-card" data-entry-type="${type}" data-index="${index}">${fields}</div>`;
+        return `
+            <div class="entry-card" data-entry-type="${type}" data-index="${index}">
+                <button class="btn-remove-entry" data-type="${type}" data-index="${index}" style="position:absolute; top:8px; right:8px; font-size:10px; opacity:0.3;">✕</button>
+                ${fields}
+            </div>`;
     },
 
     renderLivePreview() {
         const container = document.getElementById('live-preview-container');
         if (!container) return;
         container.innerHTML = `
-            <div class="resume-paper" style="transform: scale(0.6); transform-origin: top center; margin-bottom: -400px;">
+            <div class="resume-paper" style="transform: scale(calc(600 / 800)); transform-origin: top left; margin-bottom: -200px; width: 800px; min-height: 1000px;">
                 ${this.generateResumeHTML()}
+            </div>
+        `;
+    },
+
+    renderCleanPreview() {
+        this.root.innerHTML = `
+            <div style="padding: var(--space-xl) var(--space-m); display: flex; justify-content: center; background: #fff;">
+                <div class="resume-paper clean" style="width: 800px; min-height: 1000px;">
+                    ${this.generateResumeHTML()}
+                </div>
             </div>
         `;
     },
 
     generateResumeHTML() {
         const { personal, summary, education, experience, projects, skills, links } = this.state;
+
+        const renderSection = (title, content) => {
+            if (!content || (Array.isArray(content) && content.length === 0)) return '';
+            return `
+                <div class="resume-section">
+                    <h4 class="resume-section-title">${title}</h4>
+                    ${content}
+                </div>
+            `;
+        };
+
+        const expHTML = experience.filter(e => e.company || e.role).map(e => `
+            <div class="resume-entry">
+                <div class="resume-entry-header"><span>${e.company}</span></div>
+                <div class="resume-entry-sub"><span>${e.role}</span></div>
+                <p style="font-size: 14px; margin-top: 4px; color: #444;">${e.desc || ''}</p>
+            </div>
+        `).join('');
+
+        const projHTML = projects.filter(p => p.name).map(p => `
+            <div class="resume-entry">
+                <div class="resume-entry-header"><span>${p.name}</span></div>
+                <p style="font-size: 14px; margin-top: 2px; color: #444;">${p.desc || ''}</p>
+            </div>
+        `).join('');
+
+        const eduHTML = education.filter(e => e.school).map(e => `
+            <div class="resume-entry">
+                <div class="resume-entry-header"><span>${e.school}</span></div>
+                <div class="resume-entry-sub"><span>${e.degree}</span></div>
+            </div>
+        `).join('');
+
+        const skillArr = skills.split(',').map(s => s.trim()).filter(s => s);
+        const skillHTML = skillArr.length ? `
+            <div class="resume-skills">
+                ${skillArr.map(s => `<span class="skill-pill">${s}</span>`).join('')}
+            </div>
+        ` : '';
+
+        const contactArr = [personal.email, personal.phone, personal.location, links.github, links.linkedin].filter(Boolean);
+
         return `
             <div class="resume-header">
-                <h1>${personal.name || 'Your Name'}</h1>
+                <h1>${personal.name || 'Full Name'}</h1>
                 <div class="resume-contact">
-                    <span>${personal.email || 'email@example.com'}</span>
-                    <span>${personal.phone || 'Phone'}</span>
-                    <span>${personal.location || 'Location'}</span>
+                    ${contactArr.map(c => `<span>${c}</span>`).join(' • ')}
                 </div>
             </div>
 
-            ${summary ? `
-                <div class="resume-section">
-                    <h4 class="resume-section-title">Summary</h4>
-                    <p style="font-size: 14px; white-space: pre-line;">${summary}</p>
-                </div>
-            ` : ''}
-
-            ${experience.length ? `
-                <div class="resume-section">
-                    <h4 class="resume-section-title">Experience</h4>
-                    ${experience.map(exp => `
-                        <div class="resume-entry">
-                            <div class="resume-entry-header"><span>${exp.company || 'Company'}</span></div>
-                            <div class="resume-entry-sub"><span>${exp.role || 'Role'}</span></div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : ''}
-
-            ${skills ? `
-                <div class="resume-section">
-                    <h4 class="resume-section-title">Skills</h4>
-                    <div class="resume-skills">
-                        ${skills.split(',').map(s => `<span class="skill-pill">${s.trim()}</span>`).join('')}
-                    </div>
-                </div>
-            ` : ''}
+            ${renderSection('Summary', summary ? `<p style="font-size: 14px; white-space: pre-line; color: #333;">${summary}</p>` : '')}
+            ${renderSection('Experience', expHTML)}
+            ${renderSection('Projects', projHTML)}
+            ${renderSection('Education', eduHTML)}
+            ${renderSection('Skills', skillHTML)}
         `;
     },
 
     loadSampleData() {
         this.state = {
-            personal: { name: 'John Doe', email: 'john@example.com', phone: '+91 9876543210', location: 'Bangalore, India' },
-            summary: 'Ambitious Software Engineer with a passion for building scalable web applications. Expert in React and Node.js.',
-            education: [{ school: 'St. Peters College', degree: 'Bachelor of Technology' }],
-            experience: [{ company: 'Tech Corp', role: 'Fullstack Intern' }],
-            projects: [{ name: 'SaaS Platform', desc: 'A premium build system for developers.' }],
-            skills: 'React, Javascript, CSS, Node.js, Python',
-            links: { github: 'github.com/johndoe', linkedin: 'linkedin.com/in/johndoe' }
+            personal: { name: 'Alex Rivera', email: 'alex.rivera@example.com', phone: '+1 (555) 0123', location: 'Austin, TX' },
+            summary: 'Results-driven Software Engineer with over 5 years of experience specialized in building cloud-native applications. Proven track record of improving system performance by 30% through targeted optimizations and architectural redesigns. Passionate about solving complex problems and leading high-performing technical teams.',
+            education: [{ school: 'University of Texas', degree: 'B.S. in Computer Science' }],
+            experience: [{ company: 'Innovate Tech', role: 'Senior Developer', desc: 'Led a team of 10 to deliver a mission-critical platform. Reduced downtime by 45% and mentored 4 junior engineers.' }],
+            projects: [
+                { name: 'E-commerce Engine', desc: 'Built a high-throughput checkout system handling 50k requests per minute.' },
+                { name: 'ATS Scanner', desc: 'Developed a deterministic scoring algorithm for resume parsing.' }
+            ],
+            skills: 'React, Node.js, AWS, Kubernetes, Docker, PostgreSQL, Typescript, Redis, Python',
+            links: { github: 'github.com/alexrivera', linkedin: 'linkedin.com/in/alexrivera' }
         };
+        this.saveToStorage();
         this.renderBuilder();
     }
 };

@@ -225,6 +225,72 @@ textarea:focus {
     color: var(--color-text-secondary);
 }
 
+/* ATS SCORE PANEL */
+.score-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    padding: var(--space-m);
+    margin-bottom: var(--space-m);
+}
+
+.score-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.score-label {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+}
+
+.score-value {
+    font-family: var(--font-serif);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.score-bar-bg {
+    height: 6px;
+    background: var(--color-muted);
+    border-radius: 100px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.score-bar-fill {
+    height: 100%;
+    background: var(--color-text-primary);
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.suggestions-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.suggestion-item {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    padding-left: 20px;
+    position: relative;
+}
+
+.suggestion-item::before {
+    content: '•';
+    position: absolute;
+    left: 4px;
+    color: var(--color-text-primary);
+    font-weight: 700;
+}
+
 /* RESUME PREVIEW (REUSABLE) */
 .resume-paper {
     width: 210mm;
