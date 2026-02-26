@@ -479,6 +479,76 @@ textarea:focus {
     margin-bottom: 16px;
 }
 
+/* PRINT STYLES */
+@media print {
+    @page {
+        margin: 20mm;
+        size: A4;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .top-bar,
+    .template-tabs,
+    .export-actions,
+    .toast-container,
+    .builder-grid .form-panel,
+    .builder-grid #score-panel-root {
+        display: none !important;
+    }
+
+    .app-wrapper {
+        display: block !important;
+        min-height: auto !important;
+    }
+
+    #app-root {
+        padding: 0 !important;
+    }
+
+    .resume-paper {
+        width: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        transform: none !important;
+        margin: 0 !important;
+        display: block !important;
+    }
+
+    .resume-section {
+        page-break-inside: avoid;
+    }
+
+    .resume-entry {
+        page-break-inside: avoid;
+    }
+}
+
+/* EXPORT UI */
+.export-actions {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.validation-warning {
+    background: #FFFBE6;
+    border: 1px solid #FFE58F;
+    color: #856404;
+    padding: 12px 16px;
+    border-radius: var(--border-radius);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    display: none;
+    /* Shown via JS */
+}
+
+/* TOAST */
 .toast-container {
     position: fixed;
     bottom: 24px;
