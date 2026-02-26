@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Resume Builder — Build Track</title>
-    <meta name="description" content="KodNest Premium Build System - AI Resume Builder Project.">
+    <title>AI Resume Builder - Build Premium</title>
+    <meta name="description" content="AI Resume Builder - Premium Resume Experience.">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -18,27 +18,28 @@
                 <a href="/" class="logo-link">AI Resume Builder</a>
             </div>
 
-            <div class="top-bar-center" id="step-indicator">
-                Project 3 — Step 1 of 8
-            </div>
+            <nav class="main-nav">
+                <ul class="nav-links" id="nav-menu">
+                    <li><a href="/" class="nav-link">Home</a></li>
+                    <li><a href="/builder" class="nav-link">Builder</a></li>
+                    <li><a href="/preview" class="nav-link">Preview</a></li>
+                    <li><a href="/proof" class="nav-link">Proof</a></li>
+                </ul>
+            </nav>
 
             <div class="top-bar-right">
-                <span class="status-badge active" id="status-badge">Design Phase</span>
+                <span class="status-badge active" id="status-badge">SaaS Mode</span>
             </div>
         </header>
 
         <!-- DYNAMIC CONTENT -->
         <main id="app-root">
-            <!-- Context Header and Main Grid will be injected here -->
+            <!-- Content will be injected by app.js -->
         </main>
-
-        <!-- PROOF FOOTER -->
-        <footer class="proof-footer">
-            <ul class="footer-checklist" id="footer-checklist">
-                <!-- Checkbox items for Steps 1-8 -->
-            </ul>
-        </footer>
     </div>
+
+    <!-- Modals or extra UI items -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="app.js"></script>
 </body>

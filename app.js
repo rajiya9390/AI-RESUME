@@ -1,298 +1,350 @@
 /**
- * AI Resume Builder - Build Track v1.0
- * Premium Route Rail & Gating System
+ * AI Resume Builder - Intelligence Layer v1.0
+ * Pure Layout Skeleton & Dynamic Data Sync
  */
 
 const App = {
-    steps: [
-        { id: '01-problem', title: 'Problem Discovery', route: '/rb/01-problem', prompt: 'Define the core problem AI Resume Builder solves.' },
-        { id: '02-market', title: 'Market Analysis', route: '/rb/02-market', prompt: 'Analyze the target audience and competitors.' },
-        { id: '03-architecture', title: 'System Architecture', route: '/rb/03-architecture', prompt: 'Design the high-level system components.' },
-        { id: '04-hld', title: 'High Level Design', route: '/rb/04-hld', prompt: 'Define API contracts and database schema.' },
-        { id: '05-lld', title: 'Low Level Design', route: '/rb/05-lld', prompt: 'Detailed component design and logic flows.' },
-        { id: '06-build', title: 'Core Build', route: '/rb/06-build', prompt: 'Implement the primary resume building engine.' },
-        { id: '07-test', title: 'Quality Assurance', route: '/rb/07-test', prompt: 'Verify edge cases and output formatting.' },
-        { id: '08-ship', title: 'Final Shipment', route: '/rb/08-ship', prompt: 'Deploy and hand over the final product.' }
-    ],
+    // Initial State
+    state: {
+        personal: { name: '', email: '', phone: '', location: '' },
+        summary: '',
+        education: [],
+        experience: [],
+        projects: [],
+        skills: '',
+        links: { github: '', linkedin: '' }
+    },
 
     init() {
         this.cacheDOM();
         this.bindEvents();
-        this.loadState();
         this.handleInitialRoute();
     },
 
     cacheDOM() {
         this.root = document.getElementById('app-root');
-        this.stepIndicator = document.getElementById('step-indicator');
-        this.statusBadge = document.getElementById('status-badge');
-        this.footerChecklist = document.getElementById('footer-checklist');
-    },
-
-    loadState() {
-        this.artifacts = {};
-        this.steps.forEach((step, index) => {
-            const key = `rb_step_${index + 1}_artifact`;
-            this.artifacts[step.id] = localStorage.getItem(key);
-        });
-        this.submissionLinks = JSON.parse(localStorage.getItem('rb_submission_links')) || {
-            lovable: '',
-            github: '',
-            deploy: ''
-        };
+        this.navLinks = document.querySelectorAll('.nav-link');
     },
 
     bindEvents() {
         document.addEventListener('click', (e) => {
             const link = e.target.closest('a');
-            if (link && link.getAttribute('href') && link.getAttribute('href').startsWith('/rb/')) {
+            if (link && link.getAttribute('href')?.startsWith('/')) {
                 e.preventDefault();
                 this.navigate(link.getAttribute('href'));
             }
 
-            if (e.target.id === 'copy-prompt') this.copyPrompt();
-            if (e.target.id === 'upload-artifact') this.triggerUpload();
-            if (e.target.id === 'btn-it-worked') this.setBuildStatus('Success');
-            if (e.target.id === 'btn-error') this.setBuildStatus('Error');
-            if (e.target.id === 'copy-submission') this.copySubmission();
-            if (e.target.id === 'save-links') this.saveSubmissionLinks();
+            // Builder Actions
+            if (e.target.id === 'load-sample') this.loadSampleData();
+            if (e.target.matches('.btn-add-edu')) this.addEntry('education');
+            if (e.target.matches('.btn-add-exp')) this.addEntry('experience');
+            if (e.target.matches('.btn-add-proj')) this.addEntry('projects');
+        });
+
+        // Live Sync for the Builder
+        document.addEventListener('input', (e) => {
+            if (window.location.pathname === '/builder') {
+                this.syncFormToState();
+                this.renderLivePreview();
+            }
         });
 
         window.addEventListener('popstate', () => this.renderRoute(window.location.pathname));
     },
 
     navigate(path) {
-        if (!this.canNavigateTo(path)) {
-            alert('Step locked. Please complete the previous step first.');
-            return;
-        }
+        if (window.location.pathname === path) return;
         window.history.pushState({}, '', path);
         this.renderRoute(path);
     },
 
-    canNavigateTo(path) {
-        if (path === '/rb/proof') return true;
-        const stepIndex = this.steps.findIndex(s => s.route === path);
-        if (stepIndex <= 0) return true;
-
-        // Check if previous step has an artifact
-        const prevStep = this.steps[stepIndex - 1];
-        return !!this.artifacts[prevStep.id];
-    },
-
     handleInitialRoute() {
-        let path = window.location.pathname;
-        if (path === '/' || path === '/index.html') path = '/rb/01-problem';
-        this.renderRoute(path);
+        this.renderRoute(window.location.pathname);
     },
 
     renderRoute(path) {
+        this.updateActiveNav(path);
         window.scrollTo(0, 0);
-        this.updateFooter();
 
-        if (path === '/rb/proof') {
-            this.renderProofPage();
-            return;
+        switch (path) {
+            case '/': this.renderHome(); break;
+            case '/builder': this.renderBuilder(); break;
+            case '/preview': this.renderCleanPreview(); break;
+            case '/proof': this.renderProof(); break;
+            default: this.renderHome(); break;
         }
+    },
 
-        const stepIndex = this.steps.findIndex(s => s.route === path);
-        if (stepIndex !== -1) {
-            this.renderStepPage(stepIndex);
+    updateActiveNav(path) {
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === path);
+        });
+    },
+
+    // --- PAGE RENDERERS ---
+
+    renderHome() {
+        this.root.innerHTML = `
+            <section class="hero-section">
+                <h1>Build a Resume That Gets Read.</h1>
+                <p class="mb-12" style="font-size: 20px; color: #555;">Create professional, high-impact resumes with ease.</p>
+                <div class="mt-24">
+                    <a href="/builder" class="btn btn-primary">Start Building</a>
+                </div>
+            </section>
+        `;
+    },
+
+    renderBuilder() {
+        this.root.innerHTML = `
+            <div class="builder-grid">
+                <div class="form-panel">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                        <h2 class="serif">Resume Builder</h2>
+                        <button class="btn btn-secondary" id="load-sample" style="font-size: 13px; padding: 8px 16px;">Load Sample Data</button>
+                    </div>
+
+                    <!-- Personal Info -->
+                    <div class="form-section">
+                        <h3 class="section-title">Personal Information</h3>
+                        <div class="input-group">
+                            <label class="input-label">Full Name</label>
+                            <input type="text" data-field="personal.name" placeholder="John Doe">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="input-group"><label class="input-label">Email</label><input type="email" data-field="personal.email"></div>
+                            <div class="input-group"><label class="input-label">Phone</label><input type="tel" data-field="personal.phone"></div>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Location</label>
+                            <input type="text" data-field="personal.location" placeholder="City, State">
+                        </div>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="form-section">
+                        <h3 class="section-title">Professional Summary</h3>
+                        <textarea data-field="summary" rows="4" placeholder="Brief overview of your career and goals..."></textarea>
+                    </div>
+
+                    <!-- Education -->
+                    <div class="form-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Education</h3>
+                            <button class="btn-ghost btn-add-edu">+ Add Entry</button>
+                        </div>
+                        <div id="education-entries"></div>
+                    </div>
+
+                    <!-- Experience -->
+                    <div class="form-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Experience</h3>
+                            <button class="btn-ghost btn-add-exp">+ Add Entry</button>
+                        </div>
+                        <div id="experience-entries"></div>
+                    </div>
+
+                    <!-- Projects -->
+                    <div class="form-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 class="section-title" style="margin-bottom: 0; border: none;">Projects</h3>
+                            <button class="btn-ghost btn-add-proj">+ Add Entry</button>
+                        </div>
+                        <div id="projects-entries"></div>
+                    </div>
+
+                    <!-- Skills -->
+                    <div class="form-section">
+                        <h3 class="section-title">Skills</h3>
+                        <input type="text" data-field="skills" placeholder="React, Node.js, Python...">
+                    </div>
+
+                    <!-- Links -->
+                    <div class="form-section">
+                        <h3 class="section-title">Links</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="input-group"><label class="input-label">GitHub</label><input type="text" data-field="links.github"></div>
+                            <div class="input-group"><label class="input-label">LinkedIn</label><input type="text" data-field="links.linkedin"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-panel">
+                    <div id="live-preview-container">
+                        <!-- Resume Layout Shell -->
+                    </div>
+                </div>
+            </div>
+        `;
+        this.renderLivePreview();
+        this.populateFormFromState();
+    },
+
+    renderCleanPreview() {
+        this.root.innerHTML = `
+            <div style="padding: var(--space-xl) var(--space-m); display: flex; justify-content: center; background: #fff;">
+                <div class="resume-paper clean">
+                    ${this.generateResumeHTML()}
+                </div>
+            </div>
+        `;
+    },
+
+    renderProof() {
+        this.root.innerHTML = `<section class="hero-section"><h1>Project Proof</h1><p class="subtext">Verification and artifacts placeholder.</p></section>`;
+    },
+
+    // --- LOGIC ---
+
+    addEntry(type) {
+        const entry = { id: Date.now() };
+        if (type === 'education') entry.school = '';
+        if (type === 'experience') entry.company = '';
+        if (type === 'projects') entry.name = '';
+
+        this.state[type].push(entry);
+        this.renderBuilder();
+    },
+
+    syncFormToState() {
+        const inputs = this.root.querySelectorAll('[data-field]');
+        inputs.forEach(input => {
+            const field = input.getAttribute('data-field');
+            const value = input.value;
+
+            if (field.includes('.')) {
+                const [obj, key] = field.split('.');
+                this.state[obj][key] = value;
+            } else {
+                this.state[field] = value;
+            }
+        });
+
+        // Sync Dynamic Entries
+        this.syncDynamicEntries('education');
+        this.syncDynamicEntries('experience');
+        this.syncDynamicEntries('projects');
+    },
+
+    syncDynamicEntries(type) {
+        const containers = this.root.querySelectorAll(`[data-entry-type="${type}"]`);
+        this.state[type] = Array.from(containers).map(container => {
+            const data = {};
+            container.querySelectorAll('[data-subfield]').forEach(input => {
+                data[input.getAttribute('data-subfield')] = input.value;
+            });
+            return data;
+        });
+    },
+
+    populateFormFromState() {
+        // Simple fields
+        this.root.querySelectorAll('[data-field]').forEach(input => {
+            const field = input.getAttribute('data-field');
+            if (field.includes('.')) {
+                const [obj, key] = field.split('.');
+                input.value = this.state[obj][key] || '';
+            } else {
+                input.value = this.state[field] || '';
+            }
+        });
+
+        // Dynamic Entries
+        ['education', 'experience', 'projects'].forEach(type => {
+            const container = document.getElementById(`${type}-entries`);
+            if (container) {
+                container.innerHTML = this.state[type].map((entry, i) => this.renderEntryForm(type, entry, i)).join('');
+            }
+        });
+    },
+
+    renderEntryForm(type, entry, index) {
+        let fields = '';
+        if (type === 'education') {
+            fields = `
+                <div class="input-group"><label class="input-label">School</label><input type="text" data-subfield="school" value="${entry.school || ''}"></div>
+                <div class="input-group"><label class="input-label">Degree</label><input type="text" data-subfield="degree" value="${entry.degree || ''}"></div>
+            `;
+        } else if (type === 'experience') {
+            fields = `
+                <div class="input-group"><label class="input-label">Company</label><input type="text" data-subfield="company" value="${entry.company || ''}"></div>
+                <div class="input-group"><label class="input-label">Role</label><input type="text" data-subfield="role" value="${entry.role || ''}"></div>
+            `;
         } else {
-            this.root.innerHTML = '<h1>404 - Not Found</h1>';
+            fields = `
+                <div class="input-group"><label class="input-label">Project Name</label><input type="text" data-subfield="name" value="${entry.name || ''}"></div>
+                <textarea data-subfield="desc" placeholder="Project description...">${entry.desc || ''}</textarea>
+            `;
         }
+
+        return `<div class="entry-card" data-entry-type="${type}" data-index="${index}">${fields}</div>`;
     },
 
-    renderStepPage(index) {
-        const step = this.steps[index];
-        const hasArtifact = !!this.artifacts[step.id];
-
-        // Update Header
-        this.stepIndicator.innerText = `Project 3 — Step ${index + 1} of 8`;
-        this.statusBadge.innerText = index < 3 ? 'Design Phase' : 'Build Phase';
-
-        this.root.innerHTML = `
-            <header class="context-header">
-                <h1>${step.title}</h1>
-                <p class="subtext">Step ${index + 1} of the AI Resume Builder track.</p>
-            </header>
-
-            <div class="main-grid">
-                <!-- MAIN WORKSPACE -->
-                <div class="primary-workspace">
-                    <div class="card">
-                        <h2 class="serif">Workspace</h2>
-                        <p class="mt-16">Provide details or upload documentation for ${step.title}.</p>
-                        
-                        <div class="mt-24">
-                            ${hasArtifact ? `
-                                <div class="uploaded-artifact">
-                                    <span>✓ Artifact Stored: rb_step_${index + 1}_artifact</span>
-                                </div>
-                                <button class="btn btn-secondary mt-16" onclick="App.removeArtifact('${step.id}', ${index + 1})">Remove & Replace</button>
-                            ` : `
-                                <div class="artifact-upload-zone" id="upload-zone">
-                                    <p>Drag & Drop or Click to Upload Artifact</p>
-                                    <p style="font-size: 12px; opacity: 0.5; margin-top: 8px;">(PDF, JSON, or MD accepted)</p>
-                                </div>
-                                <input type="file" id="file-input" style="display: none;">
-                            `}
-                        </div>
-                    </div>
-
-                    <div class="mt-24" style="display: flex; justify-content: space-between;">
-                        <button class="btn btn-secondary" ${index === 0 ? 'disabled' : ''} onclick="App.navigate('${index > 0 ? this.steps[index - 1].route : '#'}')">Back</button>
-                        ${index === 7 ? `
-                            <button class="btn btn-primary" ${!hasArtifact ? 'disabled' : ''} onclick="App.navigate('/rb/proof')">View Final Proof</button>
-                        ` : `
-                            <button class="btn btn-primary" ${!hasArtifact ? 'disabled' : ''} onclick="App.navigate('${this.steps[index + 1].route}')">Next Step</button>
-                        `}
-                    </div>
-                </div>
-
-                <!-- BUILD PANEL -->
-                <div class="secondary-panel">
-                    <div class="card">
-                        <h3 class="build-panel-title">Build Logic</h3>
-                        <label class="form-label" style="font-size: 11px;">Copy This Into Lovable</label>
-                        <textarea class="lovable-textarea" id="lovable-prompt" readonly>${step.prompt}</textarea>
-                        
-                        <div class="build-actions">
-                            <button class="btn btn-primary" id="copy-prompt">Copy</button>
-                            <a href="https://lovable.dev" target="_blank" class="btn btn-secondary" style="text-align: center;">Build in Lovable</a>
-                        </div>
-
-                        <div class="build-status-group">
-                            <label class="form-label" style="font-size: 11px;">Verification</label>
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-secondary full-width" id="btn-it-worked">It Worked</button>
-                                <button class="btn btn-secondary full-width" id="btn-error">Error</button>
-                            </div>
-                            <button class="btn btn-ghost mt-8" style="font-size: 12px;">Add Screenshot</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        if (!hasArtifact) {
-            const zone = document.getElementById('upload-zone');
-            zone.onclick = () => document.getElementById('file-input').click();
-            document.getElementById('file-input').onchange = (e) => this.handleUpload(e, step.id, index + 1);
-        }
-    },
-
-    handleUpload(e, stepId, stepNum) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Simulate upload by storing filename
-        localStorage.setItem(`rb_step_${stepNum}_artifact`, file.name);
-        this.artifacts[stepId] = file.name;
-        this.renderRoute(window.location.pathname);
-    },
-
-    removeArtifact(stepId, stepNum) {
-        localStorage.removeItem(`rb_step_${stepNum}_artifact`);
-        this.artifacts[stepId] = null;
-        this.renderRoute(window.location.pathname);
-    },
-
-    copyPrompt() {
-        const textarea = document.getElementById('lovable-prompt');
-        textarea.select();
-        document.execCommand('copy');
-        alert('Prompt copied!');
-    },
-
-    setBuildStatus(status) {
-        alert(`Status marked as: ${status}`);
-    },
-
-    updateFooter() {
-        this.footerChecklist.innerHTML = this.steps.map((step, i) => `
-            <li class="checklist-item ${this.artifacts[step.id] ? 'done' : ''}">
-                <span class="check-box"></span>
-                Step ${i + 1}
-            </li>
-        `).join('');
-    },
-
-    renderProofPage() {
-        this.stepIndicator.innerText = `Project 3 — Completion`;
-        this.statusBadge.innerText = 'Ship Phase';
-
-        const completedCount = Object.values(this.artifacts).filter(Boolean).length;
-
-        this.root.innerHTML = `
-            <header class="context-header">
-                <h1>Project Proof</h1>
-                <p class="subtext">Final submission requirements for the AI Resume Builder.</p>
-            </header>
-
-            <div class="main-grid" style="grid-template-columns: 1fr;">
-                <div class="primary-workspace" style="max-width: 800px; margin: 0 auto;">
-                    <div class="card">
-                        <h2 class="serif">Step Status (${completedCount}/8)</h2>
-                        <div class="mt-24" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            ${this.steps.map((step, i) => `
-                                <div style="display: flex; justify-content: space-between; padding: 12px; border: 1px solid var(--color-border); border-radius: 4px; ${this.artifacts[step.id] ? 'background: #F0F9F1; border-color: #A8DAB5;' : 'opacity: 0.5;'}">
-                                    <span>Step ${i + 1}: ${step.title}</span>
-                                    <span style="font-weight: 700;">${this.artifacts[step.id] ? 'DONE' : 'LOCKED'}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div class="card mt-24">
-                        <h2 class="serif">Submission Links</h2>
-                        <div class="mt-24">
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label class="form-label" style="font-size: 11px;">Lovable Link</label>
-                                <input type="text" id="link-lovable" placeholder="https://lovable.dev/projects/..." value="${this.submissionLinks.lovable}" style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 4px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label class="form-label" style="font-size: 11px;">GitHub Link</label>
-                                <input type="text" id="link-github" placeholder="https://github.com/..." value="${this.submissionLinks.github}" style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 4px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label class="form-label" style="font-size: 11px;">Deploy Link</label>
-                                <input type="text" id="link-deploy" placeholder="https://..." value="${this.submissionLinks.deploy}" style="width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: 4px;">
-                            </div>
-                            <div style="display: flex; gap: 16px;">
-                                <button class="btn btn-primary" id="save-links">Save Links</button>
-                                <button class="btn btn-secondary" id="copy-submission">Copy Final Submission</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-24" style="text-align: center;">
-                        <a href="/rb/08-ship" class="btn btn-ghost">← Back to Ship Step</a>
-                    </div>
-                </div>
+    renderLivePreview() {
+        const container = document.getElementById('live-preview-container');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="resume-paper" style="transform: scale(0.6); transform-origin: top center; margin-bottom: -400px;">
+                ${this.generateResumeHTML()}
             </div>
         `;
     },
 
-    saveSubmissionLinks() {
-        this.submissionLinks = {
-            lovable: document.getElementById('link-lovable').value,
-            github: document.getElementById('link-github').value,
-            deploy: document.getElementById('link-deploy').value
+    generateResumeHTML() {
+        const { personal, summary, education, experience, projects, skills, links } = this.state;
+        return `
+            <div class="resume-header">
+                <h1>${personal.name || 'Your Name'}</h1>
+                <div class="resume-contact">
+                    <span>${personal.email || 'email@example.com'}</span>
+                    <span>${personal.phone || 'Phone'}</span>
+                    <span>${personal.location || 'Location'}</span>
+                </div>
+            </div>
+
+            ${summary ? `
+                <div class="resume-section">
+                    <h4 class="resume-section-title">Summary</h4>
+                    <p style="font-size: 14px; white-space: pre-line;">${summary}</p>
+                </div>
+            ` : ''}
+
+            ${experience.length ? `
+                <div class="resume-section">
+                    <h4 class="resume-section-title">Experience</h4>
+                    ${experience.map(exp => `
+                        <div class="resume-entry">
+                            <div class="resume-entry-header"><span>${exp.company || 'Company'}</span></div>
+                            <div class="resume-entry-sub"><span>${exp.role || 'Role'}</span></div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            ${skills ? `
+                <div class="resume-section">
+                    <h4 class="resume-section-title">Skills</h4>
+                    <div class="resume-skills">
+                        ${skills.split(',').map(s => `<span class="skill-pill">${s.trim()}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    },
+
+    loadSampleData() {
+        this.state = {
+            personal: { name: 'John Doe', email: 'john@example.com', phone: '+91 9876543210', location: 'Bangalore, India' },
+            summary: 'Ambitious Software Engineer with a passion for building scalable web applications. Expert in React and Node.js.',
+            education: [{ school: 'St. Peters College', degree: 'Bachelor of Technology' }],
+            experience: [{ company: 'Tech Corp', role: 'Fullstack Intern' }],
+            projects: [{ name: 'SaaS Platform', desc: 'A premium build system for developers.' }],
+            skills: 'React, Javascript, CSS, Node.js, Python',
+            links: { github: 'github.com/johndoe', linkedin: 'linkedin.com/in/johndoe' }
         };
-        localStorage.setItem('rb_submission_links', JSON.stringify(this.submissionLinks));
-        alert('Links saved locally.');
-    },
-
-    copySubmission() {
-        if (!this.submissionLinks.lovable || !this.submissionLinks.github || !this.submissionLinks.deploy) {
-            alert('Please fill in all submission links first.');
-            return;
-        }
-        const text = `Project 3: AI Resume Builder\n\nLovable: ${this.submissionLinks.lovable}\nGitHub: ${this.submissionLinks.github}\nDeploy: ${this.submissionLinks.deploy}\n\nAll 8 steps completed.`;
-        navigator.clipboard.writeText(text).then(() => alert('Final submission copied to clipboard!'));
+        this.renderBuilder();
     }
 };
 
-window.App = App;
 document.addEventListener('DOMContentLoaded', () => App.init());
