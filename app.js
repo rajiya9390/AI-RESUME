@@ -4,7 +4,7 @@
  */
 
 const App = {
-    actionVerbs: ['Built', 'Developed', 'Designed', 'Implemented', 'Led', 'Improved', 'Created', 'Optimized', 'Automated'],
+    actionVerbs: ['built', 'developed', 'designed', 'implemented', 'led', 'improved', 'created', 'optimized', 'automated', 'launched', 'delivered', 'architected', 'engineered', 'scaled', 'integrated', 'reduced', 'increased', 'managed', 'mentored', 'deployed', 'migrated', 'refactored', 'collaborated', 'researched', 'analyzed', 'streamlined', 'accelerated', 'pioneered', 'established', 'transformed'],
 
     state: {
         personal: { name: '', email: '', phone: '', location: '' },
@@ -173,6 +173,7 @@ const App = {
             case '/builder': this.renderBuilder(); break;
             case '/preview': this.renderCleanPreview(); break;
             case '/proof': this.renderProof(); break;
+            case '/test': this.renderTestChecklist(); break;
             default: this.renderHome(); break;
         }
     },
@@ -229,30 +230,29 @@ const App = {
     },
 
     calculateATSScore() {
-        let score = 0;
-        const { summary, education, experience, projects, skills, links } = this.state;
-        const wordCount = summary.trim().split(/\s+/).filter(w => w).length;
-        if (wordCount >= 40 && wordCount <= 120) score += 15;
-        if (projects.length >= 2) score += 10;
-        if (experience.length >= 1) score += 10;
-        const skillCount = (skills.technical || []).length + (skills.soft || []).length + (skills.tools || []).length;
-        if (skillCount >= 8) score += 10;
-        if (links.github || links.linkedin) score += 10;
-        const hasNumbers = [...experience, ...projects].some(p => /[0-9]+|%|k|m|x/.test((p.desc || '').toLowerCase()));
-        if (hasNumbers) score += 15;
-        const eduComplete = education.length > 0 && education.every(e => e.school && e.degree);
-        if (eduComplete) score += 10;
-        return { total: Math.min(score, 100), wordCount, projectsCount: projects.length, experienceCount: experience.length, skillCount, hasLinks: !!(links.github || links.linkedin), hasNumbers, eduComplete };
-    },
+        const { personal, summary, education, experience, projects, skills, links } = this.state;
+        const rules = [];
+        const allSkills = [...(skills.technical || []), ...(skills.soft || []), ...(skills.tools || [])];
+        const hasExpBullets = experience.some(e => e.desc && e.desc.trim().length > 0);
+        const hasSummaryVerb = this.actionVerbs.some(v => summary.toLowerCase().includes(v));
 
-    getTopImprovements(stats) {
-        const imps = [];
-        if (stats.projectsCount < 2) imps.push({ label: "Add at least 2 projects." });
-        if (!stats.hasNumbers) imps.push({ label: "Include measurable impact (numbers, %, $)." });
-        if (stats.wordCount < 40) imps.push({ label: "Summary is too short (<40 words)." });
-        if (stats.skillCount < 8) imps.push({ label: "Target 8+ strategic skills." });
-        if (stats.experienceCount === 0) imps.push({ label: "Add an internship or project work." });
-        return imps.slice(0, 3);
+        rules.push({ key: 'name', earned: !!(personal.name && personal.name.trim()), pts: 10, label: 'Add your full name (+10 pts)' });
+        rules.push({ key: 'email', earned: !!(personal.email && personal.email.trim()), pts: 10, label: 'Add your email address (+10 pts)' });
+        rules.push({ key: 'summary', earned: summary.trim().length > 50, pts: 10, label: 'Write a summary longer than 50 characters (+10 pts)' });
+        rules.push({ key: 'experience', earned: hasExpBullets, pts: 15, label: 'Add at least 1 experience entry with details (+15 pts)' });
+        rules.push({ key: 'education', earned: education.length > 0 && education.some(e => e.school), pts: 10, label: 'Add an education entry (+10 pts)' });
+        rules.push({ key: 'skills', earned: allSkills.length >= 5, pts: 10, label: 'Add at least 5 skills (+10 pts)' });
+        rules.push({ key: 'project', earned: projects.length >= 1 && projects.some(p => p.name), pts: 10, label: 'Add at least 1 project (+10 pts)' });
+        rules.push({ key: 'phone', earned: !!(personal.phone && personal.phone.trim()), pts: 5, label: 'Add your phone number (+5 pts)' });
+        rules.push({ key: 'linkedin', earned: !!(links.linkedin && links.linkedin.trim()), pts: 5, label: 'Add your LinkedIn URL (+5 pts)' });
+        rules.push({ key: 'github', earned: !!(links.github && links.github.trim()), pts: 5, label: 'Add your GitHub URL (+5 pts)' });
+        rules.push({ key: 'verbsum', earned: hasSummaryVerb, pts: 10, label: 'Use action verbs in your summary (+10 pts)' });
+
+        const total = Math.min(rules.reduce((s, r) => s + (r.earned ? r.pts : 0), 0), 100);
+        const missing = rules.filter(r => !r.earned);
+        const label = total <= 40 ? 'Needs Work' : total <= 70 ? 'Getting There' : 'Strong Resume';
+        const color = total <= 40 ? '#dc2626' : total <= 70 ? '#d97706' : '#16a34a';
+        return { total, label, color, rules, missing };
     },
 
     checkBullet(text) {
@@ -441,10 +441,24 @@ const App = {
                     
                     <div class="form-section">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--color-border);">
+                            <h3 class="section-title" style="border:none; margin:0;">Education</h3>
+                            <button class="btn-ghost btn-add-edu">+ Add</button>
+                        </div>
+                        <div id="education-entries"></div>
+                    </div>
+
+                    <div class="form-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--color-border);">
                             <h3 class="section-title" style="border:none; margin:0;">Skills</h3>
                             <button class="btn-ghost" id="btn-suggest-skills">✨ Suggest Skills</button>
                         </div>
                         <div id="skills-entries"></div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">Links</h3>
+                        <div class="input-group"><label class="input-label">GitHub URL</label><input type="text" data-field="links.github" placeholder="github.com/username"></div>
+                        <div class="input-group"><label class="input-label">LinkedIn URL</label><input type="text" data-field="links.linkedin" placeholder="linkedin.com/in/username"></div>
                     </div>
 
                 </div>
@@ -460,9 +474,79 @@ const App = {
     updateScorePanel() {
         const root = document.getElementById('score-panel-root');
         if (!root) return;
-        const stats = this.calculateATSScore();
-        const improvements = this.getTopImprovements(stats);
-        root.innerHTML = `<div class="score-card"><div class="score-header"><span class="score-label">ATS Readiness</span><span class="score-value">${stats.total}%</span></div><div class="score-bar-bg"><div class="score-bar-fill" style="width: ${stats.total}%"></div></div><h4 style="font-size:11px; text-transform:uppercase; margin-bottom:12px; opacity:0.6;">Top 3 Improvements</h4><ul class="suggestions-list">${improvements.length ? improvements.map(i => `<li class="suggestion-item">${i.label}</li>`).join('') : '<li style="font-size:13px; color:var(--color-success);">✓ No major improvements needed.</li>'}</ul></div>`;
+        const { total, label, color, missing } = this.calculateATSScore();
+        const r = 36; const circ = 2 * Math.PI * r;
+        const dash = circ - (total / 100) * circ;
+        const suggestions = missing.slice(0, 4);
+        root.innerHTML = `
+        <div class="score-card" style="margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:20px; margin-bottom:16px;">
+                <div style="position:relative; flex-shrink:0;">
+                    <svg width="88" height="88" viewBox="0 0 88 88">
+                        <circle cx="44" cy="44" r="${r}" fill="none" stroke="#f1f1f1" stroke-width="8"/>
+                        <circle cx="44" cy="44" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+                            stroke-dasharray="${circ}" stroke-dashoffset="${dash}"
+                            stroke-linecap="round" transform="rotate(-90 44 44)"
+                            style="transition:stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1);"/>
+                    </svg>
+                    <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                        <span style="font-size:20px; font-weight:700; color:${color}; font-family:var(--font-serif);">${total}</span>
+                        <span style="font-size:9px; font-weight:600; text-transform:uppercase; color:#888;">/ 100</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#888; margin-bottom:4px;">ATS Score</div>
+                    <div style="font-size:18px; font-weight:700; color:${color}; font-family:var(--font-serif);">${label}</div>
+                    <div style="font-size:12px; color:#aaa; margin-top:2px;">${total < 100 ? `${100 - total} pts to perfect score` : '🎉 Perfect score!'}</div>
+                </div>
+            </div>
+            ${suggestions.length ? `
+            <div style="border-top:1px solid var(--color-border); padding-top:12px;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#aaa; margin-bottom:10px;">Improve Your Score</div>
+                <ul class="suggestions-list">
+                    ${suggestions.map(s => `<li class="suggestion-item">${s.label}</li>`).join('')}
+                </ul>
+            </div>` : `<div style="font-size:13px; color:#16a34a; font-weight:600;">✓ No remaining improvements!</div>`}
+        </div>`;
+    },
+
+    renderATSPanel() {
+        const { total, label, color, rules, missing } = this.calculateATSScore();
+        const r = 56; const circ = 2 * Math.PI * r;
+        const dash = circ - (total / 100) * circ;
+        return `
+        <div style="width:100%; max-width:800px; margin-bottom:32px;">
+            <div class="score-card" style="padding:32px;">
+                <div style="display:flex; align-items:center; gap:32px; flex-wrap:wrap;">
+                    <div style="position:relative; flex-shrink:0;">
+                        <svg width="140" height="140" viewBox="0 0 140 140">
+                            <circle cx="70" cy="70" r="${r}" fill="none" stroke="#f1f1f1" stroke-width="12"/>
+                            <circle cx="70" cy="70" r="${r}" fill="none" stroke="${color}" stroke-width="12"
+                                stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${dash.toFixed(2)}"
+                                stroke-linecap="round" transform="rotate(-90 70 70)"/>
+                        </svg>
+                        <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                            <span style="font-size:38px; font-weight:700; color:${color}; font-family:var(--font-serif); line-height:1;">${total}</span>
+                            <span style="font-size:13px; color:#aaa; font-weight:600;">/ 100</span>
+                        </div>
+                    </div>
+                    <div style="flex:1; min-width:200px;">
+                        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#aaa; margin-bottom:6px;">ATS Readiness Score</div>
+                        <div style="font-size:32px; font-weight:700; color:${color}; font-family:var(--font-serif); margin-bottom:8px;">${label}</div>
+                        <div style="font-size:14px; color:#888;">${total < 100 ? `Add the missing items below to gain <strong>${100 - total} more points</strong>.` : '🎉 Your resume is fully optimized!'}</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:28px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    ${rules.map(r => `
+                    <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:6px; background:${r.earned ? '#f0fdf4' : '#fafafa'}; border:1px solid ${r.earned ? '#bbf7d0' : '#eeeeee'};">
+                        <span style="font-size:16px;">${r.earned ? '✅' : '⬜'}</span>
+                        <div style="flex:1; font-size:13px; color:${r.earned ? '#15803d' : '#555'}; font-weight:${r.earned ? '600' : '400'}">${r.earned ? r.label.split('(')[0].trim() : r.label}</div>
+                        <span style="font-size:11px; font-weight:700; color:${r.earned ? '#16a34a' : '#aaa'};">+${r.pts}</span>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
     },
 
     renderEntryForm(type, entry, index) {
@@ -483,6 +567,20 @@ const App = {
             const container = document.getElementById(`${type}-entries`);
             if (container) container.innerHTML = (this.state[type] || []).map((entry, i) => this.renderEntryForm(type, entry, i)).join('');
         });
+        // Render skill tag pills
+        const skillsContainer = document.getElementById('skills-entries');
+        if (skillsContainer) {
+            const cats = { technical: 'Technical Skills', soft: 'Soft Skills', tools: 'Tools & Technologies' };
+            const sk = this.state.skills || { technical: [], soft: [], tools: [] };
+            skillsContainer.innerHTML = Object.entries(cats).map(([cat, label]) => `
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:12px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">${label} (${(sk[cat] || []).length})</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        ${(sk[cat] || []).map((s, i) => `<span style="display:inline-flex; align-items:center; gap:4px; background:#f3f4f6; border:1px solid #e5e7eb; padding:3px 10px; border-radius:100px; font-size:12px;">${s}<button class="skill-pill-remove" data-cat="${cat}" data-idx="${i}" style="background:none;border:none;cursor:pointer;font-size:10px;opacity:0.5;padding:0 0 0 2px;">✕</button></span>`).join('')}
+                    </div>
+                    <input class="tag-input" data-cat="${cat}" placeholder="Type skill + Enter" style="padding:7px 10px; border:1px solid var(--color-border); border-radius:4px; font-size:13px; width:100%;">
+                </div>`).join('');
+        }
     },
 
     renderLivePreview() {
@@ -493,12 +591,13 @@ const App = {
 
     renderCleanPreview() {
         this.root.innerHTML = `
-            <div style="padding: var(--space-xl) var(--space-m); display: flex; flex-direction: column; align-items: center; background: #fff;">
+            <div style="padding: var(--space-xl) var(--space-m); display: flex; flex-direction: column; align-items: center; background: #f9f9f9;">
                 <div id="validation-warning" class="validation-warning" style="max-width: 800px; width:100%;"></div>
-                <div class="export-actions">
-                    <button class="btn btn-primary" id="btn-print">Print / Save as PDF</button>
-                    <button class="btn btn-secondary" id="btn-copy-text">Copy Resume as Text</button>
+                <div class="export-actions" style="width:100%; max-width:800px; margin-bottom:20px;">
+                    <button class="btn btn-primary" id="btn-print">⬇ Download PDF</button>
+                    <button class="btn btn-secondary" id="btn-copy-text">📋 Copy as Text</button>
                 </div>
+                ${this.renderATSPanel()}
                 ${this.renderTemplateSelector()}
                 <div class="resume-paper clean ${this.state.selectedTemplate}" style="--color-resume-accent: ${this.state.selectedColor || 'hsl(168, 60%, 40%)'}; width: 800px; min-height: 1000px;">${this.generateResumeHTML()}</div>
             </div>
@@ -564,6 +663,75 @@ const App = {
         ${mainContent}
         ${section('Skills', skillHTML)}
         `;
+    },
+
+    renderProof() {
+        this.root.innerHTML = `<section class="hero-section"><h1>Proof of Work</h1><p style="color:#888;">Coming Soon.</p></section>`;
+    },
+
+    renderTestChecklist() {
+        const TESTS = [
+            { id: 't1', label: 'All form sections save to localStorage', how: 'Fill any field, refresh the page — data should persist.' },
+            { id: 't2', label: 'Live preview updates in real-time', how: 'Type in any form field and watch the right-side preview update instantly.' },
+            { id: 't3', label: 'Template switching preserves data', how: 'Pick Modern or Minimal template and confirm all data still shows.' },
+            { id: 't4', label: 'Color theme persists after refresh', how: 'Pick Navy color, refresh — preview should still be Navy.' },
+            { id: 't5', label: 'ATS score calculates correctly', how: 'Load Sample Data on /builder and confirm score > 70 (Strong Resume).' },
+            { id: 't6', label: 'Score updates live on edit', how: 'Delete the summary on /builder and watch score drop immediately.' },
+            { id: 't7', label: 'Export buttons work (copy / download)', how: 'On /preview click Download PDF — toast should appear. Click Copy as Text — clipboard alert.' },
+            { id: 't8', label: 'Empty states are handled gracefully', how: 'Clear all data and open /preview — no JS errors, graceful empty resume.' },
+            { id: 't9', label: 'Mobile responsive layout works', how: 'Resize browser to < 900px — form should stack above preview.' },
+            { id: 't10', label: 'No console errors on any page', how: 'Open DevTools → Console, navigate all pages. Zero red errors.' },
+        ];
+        const saved = JSON.parse(localStorage.getItem('testChecklist') || '{}');
+        const passed = TESTS.filter(t => saved[t.id]).length;
+        const pct = Math.round((passed / TESTS.length) * 100);
+        const barColor = pct < 50 ? '#dc2626' : pct < 80 ? '#d97706' : '#16a34a';
+
+        this.root.innerHTML = `
+        <div style="max-width:760px; margin:0 auto; padding:var(--space-l) var(--space-m);">
+            <h2 class="serif" style="margin-bottom:6px;">Feature Test Checklist</h2>
+            <p style="color:#888; font-size:14px; margin-bottom:28px;">Manually verify all 10 features. Check each box once confirmed.</p>
+
+            <div style="background:#fff; border:1px solid var(--color-border); border-radius:8px; padding:20px; margin-bottom:28px; display:flex; align-items:center; gap:20px;">
+                <div style="position:relative; flex-shrink:0;">
+                    <svg width="80" height="80" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="#f1f1f1" stroke-width="8"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="${barColor}" stroke-width="8"
+                            stroke-dasharray="${2 * Math.PI * 32}" stroke-dashoffset="${2 * Math.PI * 32 - (pct / 100) * 2 * Math.PI * 32}"
+                            stroke-linecap="round" transform="rotate(-90 40 40)"
+                            style="transition:0.5s;"/>
+                    </svg>
+                    <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                        <span style="font-size:20px; font-weight:700; color:${barColor}; font-family:var(--font-serif);">${pct}%</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:22px; font-weight:700; font-family:var(--font-serif); color:${barColor};">${passed} / ${TESTS.length} passed</div>
+                    <div style="font-size:13px; color:#aaa; margin-top:4px;">${pct < 100 ? `${TESTS.length - passed} test(s) remaining` : '🎉 All tests passed! Ship it.'}</div>
+                </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px;" id="test-list">
+                ${TESTS.map(t => `
+                <div style="background:#fff; border:1px solid ${saved[t.id] ? '#bbf7d0' : 'var(--color-border)'}; border-radius:8px; padding:16px 20px; display:flex; align-items:flex-start; gap:14px; transition:0.2s; cursor:pointer;" onclick="
+                    const saved = JSON.parse(localStorage.getItem('testChecklist')||'{}');
+                    saved['${t.id}'] = !saved['${t.id}'];
+                    localStorage.setItem('testChecklist', JSON.stringify(saved));
+                    App.renderTestChecklist();
+                ">
+                    <div style="width:22px; height:22px; border-radius:50%; border:2px solid ${saved[t.id] ? '#16a34a' : '#ddd'}; background:${saved[t.id] ? '#16a34a' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                        ${saved[t.id] ? '<span style="color:#fff;font-size:13px;">✓</span>' : ''}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:14px; font-weight:600; color:${saved[t.id] ? '#15803d' : '#111'}; margin-bottom:3px;">${t.label}</div>
+                        <div style="font-size:12px; color:#aaa;">${t.how}</div>
+                    </div>
+                    <span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:100px; background:${saved[t.id] ? '#dcfce7' : '#f5f5f5'}; color:${saved[t.id] ? '#16a34a' : '#aaa'}; flex-shrink:0;">${saved[t.id] ? 'PASS' : 'PENDING'}</span>
+                </div>`).join('')}
+            </div>
+
+            ${pct < 100 ? '' : `<div style="margin-top:24px; padding:20px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; text-align:center; font-size:15px; font-weight:600; color:#15803d;">🚢 All tests passed — ready to ship!</div>`}
+        </div>`;
     },
 
     loadSampleData() {
