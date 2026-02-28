@@ -14,7 +14,8 @@ const App = {
         projects: [],
         skills: { technical: [], soft: [], tools: [] },
         links: { github: '', linkedin: '' },
-        selectedTemplate: 'template-classic'
+        selectedTemplate: 'template-classic',
+        selectedColor: 'hsl(168, 60%, 40%)'
     },
 
     init() {
@@ -70,13 +71,14 @@ const App = {
 
             if (e.target.id === 'btn-suggest-skills') {
                 const btn = e.target;
-                btn.innerHTML = 'Loading...';\n                let origText = '✨ Suggest Skills';
+                btn.innerHTML = 'Loading...';
+                let origText = '✨ Suggest Skills';
                 btn.disabled = true;
                 setTimeout(() => {
                     const addUniq = (arr, items) => items.forEach(i => { if (!arr.includes(i)) arr.push(i); });
                     if (!this.state.skills) this.state.skills = { technical: [], soft: [], tools: [] };
                     if (!this.state.skills.technical) Object.assign(this.state.skills, { technical: [], soft: [], tools: [] });
-                    
+
                     addUniq(this.state.skills.technical, ["TypeScript", "React", "Node.js", "PostgreSQL", "GraphQL"]);
                     addUniq(this.state.skills.soft, ["Team Leadership", "Problem Solving"]);
                     addUniq(this.state.skills.tools, ["Git", "Docker", "AWS"]);
@@ -98,8 +100,16 @@ const App = {
                 this.render();
             }
 
-            if (e.target.matches('.tab-btn')) {
-                this.state.selectedTemplate = e.target.dataset.template;
+            if (e.target.closest('.template-thumb')) {
+                const thumb = e.target.closest('.template-thumb');
+                this.state.selectedTemplate = thumb.dataset.template;
+                this.saveToStorage();
+                this.render();
+            }
+
+            if (e.target.closest('.color-circle')) {
+                const c = e.target.closest('.color-circle');
+                this.state.selectedColor = c.dataset.color;
                 this.saveToStorage();
                 this.render();
             }
@@ -225,7 +235,7 @@ const App = {
         if (wordCount >= 40 && wordCount <= 120) score += 15;
         if (projects.length >= 2) score += 10;
         if (experience.length >= 1) score += 10;
-        const skillCount = (skills.technical||[]).length + (skills.soft||[]).length + (skills.tools||[]).length;
+        const skillCount = (skills.technical || []).length + (skills.soft || []).length + (skills.tools || []).length;
         if (skillCount >= 8) score += 10;
         if (links.github || links.linkedin) score += 10;
         const hasNumbers = [...experience, ...projects].some(p => /[0-9]+|%|k|m|x/.test((p.desc || '').toLowerCase()));
@@ -287,8 +297,30 @@ const App = {
         }
     },
 
+    showToast(msg) {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = "position:fixed; bottom:20px; right:20px; z-index:9999;";
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.style.cssText = "background:#111; color:#fff; padding:12px 24px; border-radius:4px; margin-top:8px; font-size:14px; box-shadow:0 10px 20px rgba(0,0,0,0.2); font-weight:500; opacity:0; transform:translateY(10px); transition:all 0.3s;";
+        toast.innerText = msg;
+        container.appendChild(toast);
+        toast.offsetHeight;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    },
+
     printResume() {
-        window.print();
+        this.showToast('PDF export ready! Check your downloads.');
     },
 
     copyAsText() {
@@ -317,11 +349,11 @@ const App = {
 
         if (projects && projects.length) {
             text += `Projects\n`;
-            projects.forEach(p => { if (p.name) text += `${p.name}\n${p.desc || ''}\n${(p.stack||[]).join(', ')}\nLive: ${p.liveUrl||'N/A'} | GitHub: ${p.githubUrl||'N/A'}\n\n`; });
+            projects.forEach(p => { if (p.name) text += `${p.name}\n${p.desc || ''}\n${(p.stack || []).join(', ')}\nLive: ${p.liveUrl || 'N/A'} | GitHub: ${p.githubUrl || 'N/A'}\n\n`; });
         }
 
-        
-        const allSkills = [...(skills.technical||[]), ...(skills.soft||[]), ...(skills.tools||[])];
+
+        const allSkills = [...(skills.technical || []), ...(skills.soft || []), ...(skills.tools || [])];
         if (allSkills.length) text += `Skills\n${allSkills.join(', ')}\n\n`;
 
 
@@ -341,6 +373,52 @@ const App = {
         this.root.innerHTML = `<section class="hero-section"><h1>Build a Resume That Gets Read.</h1><p class="mb-12" style="font-size: 20px; color: #555;">Create professional, high-impact resumes with ease.</p><div class="mt-24"><a href="/builder" class="btn btn-primary">Start Building</a></div></section>`;
     },
 
+    renderTemplateSelector() {
+        return `
+        <div style="margin-bottom: 32px; padding: 16px; background: #fff; border: 1px solid var(--color-border); border-radius: 8px;">
+            <div style="display:flex; justify-content:center; gap: 24px; margin-bottom: 24px;">
+                <div class="template-thumb ${this.state.selectedTemplate === 'template-classic' ? 'active' : ''}" data-template="template-classic" style="cursor:pointer; padding:12px; border:2px solid ${this.state.selectedTemplate === 'template-classic' ? 'var(--color-text-primary)' : 'transparent'}; border-radius:8px; text-align:center; transition:0.2s; position:relative; background:${this.state.selectedTemplate === 'template-classic' ? 'var(--color-muted)' : 'transparent'};">
+                    <div style="width:100px; height:140px; border:1px solid #ddd; background:#fff; margin-bottom:8px; display:flex; flex-direction:column; padding:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-radius:4px;">
+                         <div style="height:12px; background:#ddd; margin-bottom:8px; width:100%;"></div>
+                         <div style="height:2px; background:#eee; margin-bottom:8px;"></div>
+                         <div style="height:40px; background:#f9f9f9; width:100%;"></div>
+                    </div>
+                    <div style="font-size:13px; font-weight:600;">Classic</div>
+                    ${this.state.selectedTemplate === 'template-classic' ? '<div style="color:var(--color-text-primary); font-weight:bold; font-size:14px; position:absolute; bottom:6px; right:12px;">✓</div>' : ''}
+                </div>
+                
+                <div class="template-thumb ${this.state.selectedTemplate === 'template-modern' ? 'active' : ''}" data-template="template-modern" style="cursor:pointer; padding:12px; border:2px solid ${this.state.selectedTemplate === 'template-modern' ? 'var(--color-text-primary)' : 'transparent'}; border-radius:8px; text-align:center; transition:0.2s; position:relative; background:${this.state.selectedTemplate === 'template-modern' ? 'var(--color-muted)' : 'transparent'};">
+                    <div style="width:100px; height:140px; border:1px solid #ddd; background:#fff; margin-bottom:8px; display:flex; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-radius:4px; overflow:hidden;">
+                         <div style="flex:1; background:${this.state.selectedColor || 'hsl(168, 60%, 40%)'}; height:100%;"></div>
+                         <div style="flex:2; padding:8px 4px; background:#fff;">
+                             <div style="height:8px; background:#ddd; margin-bottom:8px; width:80%;"></div>
+                             <div style="height:40px; background:#f9f9f9; width:100%;"></div>
+                         </div>
+                    </div>
+                    <div style="font-size:13px; font-weight:600;">Modern</div>
+                    ${this.state.selectedTemplate === 'template-modern' ? '<div style="color:var(--color-text-primary); font-weight:bold; font-size:14px; position:absolute; bottom:6px; right:12px;">✓</div>' : ''}
+                </div>
+
+                <div class="template-thumb ${this.state.selectedTemplate === 'template-minimal' ? 'active' : ''}" data-template="template-minimal" style="cursor:pointer; padding:12px; border:2px solid ${this.state.selectedTemplate === 'template-minimal' ? 'var(--color-text-primary)' : 'transparent'}; border-radius:8px; text-align:center; transition:0.2s; position:relative; background:${this.state.selectedTemplate === 'template-minimal' ? 'var(--color-muted)' : 'transparent'};">
+                    <div style="width:100px; height:140px; border:1px solid #ddd; background:#fff; margin-bottom:8px; display:flex; flex-direction:column; padding:12px 8px; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-radius:4px;">
+                         <div style="height:10px; background:#333; margin-bottom:6px; width:60%;"></div>
+                         <div style="height:4px; background:#ddd; margin-bottom:12px; width:40%;"></div>
+                         <div style="height:40px; background:#f9f9f9; width:100%; border-left:2px solid #333;"></div>
+                    </div>
+                    <div style="font-size:13px; font-weight:600;">Minimal</div>
+                    ${this.state.selectedTemplate === 'template-minimal' ? '<div style="color:var(--color-text-primary); font-weight:bold; font-size:14px; position:absolute; bottom:6px; right:12px;">✓</div>' : ''}
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:center; gap:16px;">
+                ${['hsl(168, 60%, 40%)', 'hsl(220, 60%, 35%)', 'hsl(345, 60%, 35%)', 'hsl(150, 50%, 30%)', 'hsl(0, 0%, 25%)'].map(c => `
+                    <div class="color-circle ${this.state.selectedColor === c ? 'active' : ''}" data-color="${c}" style="width:28px; height:28px; border-radius:50%; background:${c}; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1); border: 3px solid ${this.state.selectedColor === c ? '#111' : 'transparent'}; transition:0.2s;"></div>
+                `).join('')}
+            </div>
+        </div>
+        `;
+    },
+
     renderBuilder() {
         this.root.innerHTML = `
             <div class="builder-grid">
@@ -348,11 +426,6 @@ const App = {
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h2 class="serif">Resume Builder</h2>
                         <button class="btn btn-secondary" id="load-sample" style="font-size: 11px;">Load Sample</button>
-                    </div>
-                    <div class="template-tabs">
-                        <button class="tab-btn ${this.state.selectedTemplate === 'template-classic' ? 'active' : ''}" data-template="template-classic">Classic</button>
-                        <button class="tab-btn ${this.state.selectedTemplate === 'template-modern' ? 'active' : ''}" data-template="template-modern">Modern</button>
-                        <button class="tab-btn ${this.state.selectedTemplate === 'template-minimal' ? 'active' : ''}" data-template="template-minimal">Minimal</button>
                     </div>
                     <div class="form-section">
                         <h3 class="section-title">Personal Information</h3>
@@ -375,7 +448,7 @@ const App = {
                     </div>
 
                 </div>
-                <div class="preview-panel"><div style="width: 100%; max-width: 600px;"><div id="score-panel-root"></div><div id="live-preview-container"></div></div></div>
+                <div class="preview-panel"><div style="width: 100%; max-width: 600px;">${this.renderTemplateSelector()}<div id="score-panel-root"></div><div id="live-preview-container"></div></div></div>
             </div>
         `;
         this.populateFormFromState();
@@ -415,7 +488,7 @@ const App = {
     renderLivePreview() {
         const container = document.getElementById('live-preview-container');
         if (!container) return;
-        container.innerHTML = `<div class="resume-paper ${this.state.selectedTemplate}" style="transform: scale(0.75); transform-origin: top left; width: 800px; min-height: 1000px; margin-bottom: -250px;">${this.generateResumeHTML()}</div>`;
+        container.innerHTML = `<div class="resume-paper ${this.state.selectedTemplate}" style="--color-resume-accent: ${this.state.selectedColor || 'hsl(168, 60%, 40%)'}; transform: scale(0.75); transform-origin: top left; width: 800px; min-height: 1000px; margin-bottom: -250px;">${this.generateResumeHTML()}</div>`;
     },
 
     renderCleanPreview() {
@@ -426,12 +499,8 @@ const App = {
                     <button class="btn btn-primary" id="btn-print">Print / Save as PDF</button>
                     <button class="btn btn-secondary" id="btn-copy-text">Copy Resume as Text</button>
                 </div>
-                <div class="template-tabs" style="width: 300px; margin-bottom: 40px;">
-                    <button class="tab-btn ${this.state.selectedTemplate === 'template-classic' ? 'active' : ''}" data-template="template-classic">Classic</button>
-                    <button class="tab-btn ${this.state.selectedTemplate === 'template-modern' ? 'active' : ''}" data-template="template-modern">Modern</button>
-                    <button class="tab-btn ${this.state.selectedTemplate === 'template-minimal' ? 'active' : ''}" data-template="template-minimal">Minimal</button>
-                </div>
-                <div class="resume-paper clean ${this.state.selectedTemplate}" style="width: 800px; min-height: 1000px;">${this.generateResumeHTML()}</div>
+                ${this.renderTemplateSelector()}
+                <div class="resume-paper clean ${this.state.selectedTemplate}" style="--color-resume-accent: ${this.state.selectedColor || 'hsl(168, 60%, 40%)'}; width: 800px; min-height: 1000px;">${this.generateResumeHTML()}</div>
             </div>
         `;
         this.validateResume();
@@ -455,8 +524,8 @@ const App = {
             </div>
         `).join('');
         const eduHTML = education.filter(e => e.school).map(e => `<div class="resume-entry"><div class="resume-entry-header"><span>${e.school}</span></div><div class="resume-entry-sub"><span>${e.degree}</span></div></div>`).join('');
-        const skillArr = [...(skills.technical||[]), ...(skills.soft||[]), ...(skills.tools||[])];
-        const skillHTML = Object.entries(skills).filter(([_, arr]) => arr && arr.length).map(([cat, arr]) => 
+        const skillArr = [...(skills.technical || []), ...(skills.soft || []), ...(skills.tools || [])];
+        const skillHTML = Object.entries(skills).filter(([_, arr]) => arr && arr.length).map(([cat, arr]) =>
             `<div style="margin-bottom:8px;">
                 <strong style="text-transform:capitalize; font-size:12px; font-family:var(--font-sans);">${cat.replace('tools', 'Tools & Tech').replace('technical', 'Technical').replace('soft', 'Soft')}: </strong>
                 <div class="resume-skills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">${arr.map(s => `<span class="skill-pill" style="border:1px solid var(--color-border); padding:2px 8px; font-size:11px; border-radius:100px; font-family:var(--font-sans);">${s}</span>`).join('')}</div>
@@ -464,7 +533,37 @@ const App = {
         ).join('');
         const contactArr = [personal.email, personal.phone, personal.location, links.github, links.linkedin].filter(Boolean);
 
-        return `<div class="resume-header"><h1>${personal.name || 'Your Name'}</h1><div class="resume-contact">${contactArr.map(c => `<span>${c}</span>`).join(' • ')}</div></div>${section('Summary', summary ? `<p style="font-size: 14px; color:#333;">${summary}</p>` : '')}${section('Experience', expHTML)}${section('Projects', projHTML)}${section('Education', eduHTML)}${section('Skills', skillHTML)}`;
+        const mainContent = `${section('Summary', summary ? `<p style="font-size: 14px; color:#333; font-family:var(--font-sans);">${summary}</p>` : '')}${section('Experience', expHTML)}${section('Projects', projHTML)}${section('Education', eduHTML)}`;
+
+        if (this.state.selectedTemplate === 'template-modern') {
+            return `
+            <div style="display: flex; min-height: 100%; height: 100%; background: #fff;">
+                <div class="resume-sidebar" style="width: 30%; background: var(--color-resume-accent, hsl(168, 60%, 40%)); padding: var(--space-l); color: #fff; box-sizing: border-box;">
+                    <div style="margin-bottom: 32px; word-break: break-word;">
+                        <h1 style="color: #fff; font-size: 28px; line-height: 1.1; margin-bottom: 12px; font-family:var(--font-serif); border:none; padding:0;">${personal.name || 'Your Name'}</h1>
+                        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-family:var(--font-sans);">
+                            ${contactArr.map(c => `<span>${c}</span>`).join('')}
+                        </div>
+                    </div>
+                    ${skillHTML ? `<div class="modern-skills-wrapper" style="color: #fff;">${skillHTML}</div>` : ''}
+                </div>
+                <div class="resume-main" style="flex: 1; padding: var(--space-l); box-sizing: border-box;">
+                    ${mainContent}
+                </div>
+            </div>
+            `;
+        }
+
+        return `
+        <div class="resume-header" style="${this.state.selectedTemplate === 'template-minimal' ? 'text-align:left; margin-bottom:40px;' : 'text-align:center; margin-bottom:32px;'}">
+            <h1 style="${this.state.selectedTemplate === 'template-minimal' ? 'color:var(--color-resume-accent); font-family:var(--font-sans); letter-spacing:-0.03em;' : 'font-family:var(--font-serif);'}">${personal.name || 'Your Name'}</h1>
+            <div class="resume-contact" style="display:flex; ${this.state.selectedTemplate === 'template-minimal' ? 'justify-content:flex-start;' : 'justify-content:center;'} gap:16px; font-size:13px; color:var(--color-text-secondary); margin-top:8px; font-family:var(--font-sans);">
+                ${contactArr.map(c => `<span>${c}</span>`).join(' • ')}
+            </div>
+        </div>
+        ${mainContent}
+        ${section('Skills', skillHTML)}
+        `;
     },
 
     loadSampleData() {
