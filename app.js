@@ -12,7 +12,7 @@ const App = {
         education: [],
         experience: [],
         projects: [],
-        skills: '',
+        skills: { technical: [], soft: [], tools: [] },
         links: { github: '', linkedin: '' },
         selectedTemplate: 'template-classic'
     },
@@ -56,6 +56,48 @@ const App = {
             if (e.target.matches('.btn-add-proj')) this.addEntry('projects');
             if (e.target.matches('.btn-remove-entry')) this.removeEntry(e.target.dataset.type, e.target.dataset.index);
 
+            const toggleBtn = e.target.closest('.toggle-collapse');
+            if (toggleBtn) {
+                const titleMatch = e.target.closest('.toggle-collapse');
+                // if it's the remove button don't toggle
+                if (!e.target.closest('.btn-remove-entry')) {
+                    const idx = toggleBtn.closest('.entry-card').dataset.index;
+                    this.state.projects[idx].collapsed = !this.state.projects[idx].collapsed;
+                    this.saveToStorage();
+                    this.render();
+                }
+            }
+
+            if (e.target.id === 'btn-suggest-skills') {
+                const btn = e.target;
+                btn.innerHTML = 'Loading...';\n                let origText = '✨ Suggest Skills';
+                btn.disabled = true;
+                setTimeout(() => {
+                    const addUniq = (arr, items) => items.forEach(i => { if (!arr.includes(i)) arr.push(i); });
+                    if (!this.state.skills) this.state.skills = { technical: [], soft: [], tools: [] };
+                    if (!this.state.skills.technical) Object.assign(this.state.skills, { technical: [], soft: [], tools: [] });
+                    
+                    addUniq(this.state.skills.technical, ["TypeScript", "React", "Node.js", "PostgreSQL", "GraphQL"]);
+                    addUniq(this.state.skills.soft, ["Team Leadership", "Problem Solving"]);
+                    addUniq(this.state.skills.tools, ["Git", "Docker", "AWS"]);
+                    this.saveToStorage();
+                    this.render();
+                }, 1000);
+            }
+
+            if (e.target.matches('.skill-pill-remove')) {
+                const cat = e.target.dataset.cat;
+                const idx = e.target.dataset.idx;
+                if (cat === 'stack') {
+                    const pIdx = e.target.dataset.proj;
+                    this.state.projects[pIdx].stack.splice(idx, 1);
+                } else {
+                    this.state.skills[cat].splice(idx, 1);
+                }
+                this.saveToStorage();
+                this.render();
+            }
+
             if (e.target.matches('.tab-btn')) {
                 this.state.selectedTemplate = e.target.dataset.template;
                 this.saveToStorage();
@@ -79,6 +121,29 @@ const App = {
             }
         });
 
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.matches('.tag-input')) {
+                e.preventDefault();
+                const val = e.target.value.trim();
+                if (val) {
+                    const cat = e.target.dataset.cat;
+                    if (cat === 'stack') {
+                        const pIdx = e.target.dataset.proj;
+                        if (!this.state.projects[pIdx]) return;
+                        if (!this.state.projects[pIdx].stack) this.state.projects[pIdx].stack = [];
+                        if (!this.state.projects[pIdx].stack.includes(val)) this.state.projects[pIdx].stack.push(val);
+                    } else {
+                        if (!this.state.skills) this.state.skills = { technical: [], soft: [], tools: [] };
+                        if (!this.state.skills.technical) Object.assign(this.state.skills, { technical: [], soft: [], tools: [] });
+                        if (!this.state.skills[cat].includes(val)) this.state.skills[cat].push(val);
+                    }
+                    e.target.value = '';
+                    this.saveToStorage();
+                    this.renderLivePreview();
+                    this.populateFormFromState();
+                }
+            }
+        });
         window.addEventListener('popstate', () => this.renderRoute(window.location.pathname));
     },
 
@@ -116,7 +181,7 @@ const App = {
         const entry = { id: Date.now() };
         if (type === 'education') { entry.school = ''; entry.degree = ''; }
         if (type === 'experience') { entry.company = ''; entry.role = ''; entry.desc = ''; }
-        if (type === 'projects') { entry.name = ''; entry.desc = ''; }
+        if (type === 'projects') { entry.name = 'New Project'; entry.desc = ''; entry.stack = []; entry.liveUrl = ''; entry.githubUrl = ''; entry.collapsed = false; }
         this.state[type].push(entry);
         this.saveToStorage();
         this.render();
@@ -140,7 +205,7 @@ const App = {
             this.state.links[key] = f.value;
         });
         this.state.summary = this.root.querySelector('[data-field="summary"]')?.value || '';
-        this.state.skills = this.root.querySelector('[data-field="skills"]')?.value || '';
+        // skills synchronized via enter-key tag input
         ['education', 'experience', 'projects'].forEach(type => {
             const containers = this.root.querySelectorAll(`[data-entry-type="${type}"]`);
             this.state[type] = Array.from(containers).map(container => {
@@ -160,7 +225,7 @@ const App = {
         if (wordCount >= 40 && wordCount <= 120) score += 15;
         if (projects.length >= 2) score += 10;
         if (experience.length >= 1) score += 10;
-        const skillCount = skills.split(',').map(s => s.trim()).filter(s => s).length;
+        const skillCount = (skills.technical||[]).length + (skills.soft||[]).length + (skills.tools||[]).length;
         if (skillCount >= 8) score += 10;
         if (links.github || links.linkedin) score += 10;
         const hasNumbers = [...experience, ...projects].some(p => /[0-9]+|%|k|m|x/.test((p.desc || '').toLowerCase()));
@@ -203,15 +268,19 @@ const App = {
 
     validateResume() {
         const { personal, experience, projects } = this.state;
+        const isNameMissing = !personal.name || personal.name.trim() === '';
+        const isExpEmpty = experience.length === 0 || experience.every(e => !e.company && !e.role && !e.desc);
+        const isProjEmpty = projects.length === 0 || projects.every(p => !p.name && !p.desc);
+
         const warnings = [];
-        if (!personal.name) warnings.push("Name is missing.");
-        if (experience.length === 0 && projects.length === 0) warnings.push("Experience or Projects are missing.");
+        if (isNameMissing) warnings.push("Name");
+        if (isExpEmpty && isProjEmpty) warnings.push("Experience or Projects");
 
         const warningEl = document.getElementById('validation-warning');
         if (warningEl) {
             if (warnings.length > 0) {
                 warningEl.style.display = 'block';
-                warningEl.innerText = `⚠ Your resume may look incomplete: ${warnings.join(' ')}`;
+                warningEl.innerText = `Your resume may look incomplete.`;
             } else {
                 warningEl.style.display = 'none';
             }
@@ -224,25 +293,44 @@ const App = {
 
     copyAsText() {
         const { personal, summary, education, experience, projects, skills, links } = this.state;
-        let text = `${personal.name || 'Name'}\n${personal.email || ''} | ${personal.phone || ''} | ${personal.location || ''}\n\n`;
-        if (summary) text += `SUMMARY\n${summary}\n\n`;
-        if (experience.length) {
-            text += `EXPERIENCE\n`;
-            experience.forEach(e => text += `${e.company} - ${e.role}\n${e.desc || ''}\n\n`);
-        }
-        if (projects.length) {
-            text += `PROJECTS\n`;
-            projects.forEach(p => text += `${p.name}\n${p.desc || ''}\n\n`);
-        }
-        if (education.length) {
-            text += `EDUCATION\n`;
-            education.forEach(e => text += `${e.school} - ${e.degree}\n`);
+        let text = `${personal.name || 'Name'}\n`;
+
+        const contactArr = [personal.email, personal.phone, personal.location].filter(Boolean);
+        if (contactArr.length) {
+            text += `Contact\n${contactArr.join(' | ')}\n\n`;
+        } else {
             text += `\n`;
         }
-        if (skills) text += `SKILLS\n${skills}\n\n`;
-        if (links.github || links.linkedin) text += `LINKS\n${links.github || ''} ${links.linkedin || ''}`;
 
-        navigator.clipboard.writeText(text).then(() => {
+        if (summary) text += `Summary\n${summary}\n\n`;
+
+        if (education && education.length) {
+            text += `Education\n`;
+            education.forEach(e => { if (e.school) text += `${e.school} - ${e.degree || ''}\n`; });
+            text += `\n`;
+        }
+
+        if (experience && experience.length) {
+            text += `Experience\n`;
+            experience.forEach(e => { if (e.company) text += `${e.company} - ${e.role || ''}\n${e.desc || ''}\n\n`; });
+        }
+
+        if (projects && projects.length) {
+            text += `Projects\n`;
+            projects.forEach(p => { if (p.name) text += `${p.name}\n${p.desc || ''}\n${(p.stack||[]).join(', ')}\nLive: ${p.liveUrl||'N/A'} | GitHub: ${p.githubUrl||'N/A'}\n\n`; });
+        }
+
+        
+        const allSkills = [...(skills.technical||[]), ...(skills.soft||[]), ...(skills.tools||[])];
+        if (allSkills.length) text += `Skills\n${allSkills.join(', ')}\n\n`;
+
+
+        const linkArr = [links.github, links.linkedin].filter(Boolean);
+        if (linkArr.length) {
+            text += `Links\n${linkArr.join(' | ')}\n`;
+        }
+
+        navigator.clipboard.writeText(text.trim()).then(() => {
             alert('Resume copied as plain text!');
         });
     },
@@ -277,7 +365,15 @@ const App = {
                     <div class="form-section"><h3 class="section-title">Summary</h3><textarea data-field="summary" rows="3"></textarea></div>
                     <div class="form-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--color-border);"><h3 class="section-title" style="border:none; margin:0;">Experience</h3><button class="btn-ghost btn-add-exp">+ Add</button></div><div id="experience-entries"></div></div>
                     <div class="form-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--color-border);"><h3 class="section-title" style="border:none; margin:0;">Projects</h3><button class="btn-ghost btn-add-proj">+ Add</button></div><div id="projects-entries"></div></div>
-                    <div class="form-section"><h3 class="section-title">Skills</h3><input type="text" data-field="skills"></div>
+                    
+                    <div class="form-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--color-border);">
+                            <h3 class="section-title" style="border:none; margin:0;">Skills</h3>
+                            <button class="btn-ghost" id="btn-suggest-skills">✨ Suggest Skills</button>
+                        </div>
+                        <div id="skills-entries"></div>
+                    </div>
+
                 </div>
                 <div class="preview-panel"><div style="width: 100%; max-width: 600px;"><div id="score-panel-root"></div><div id="live-preview-container"></div></div></div>
             </div>
@@ -345,17 +441,34 @@ const App = {
         const { personal, summary, education, experience, projects, skills, links } = this.state;
         const section = (title, content) => (!content || content.length < 5) ? '' : `<div class="resume-section"><h4 class="resume-section-title">${title}</h4>${content}</div>`;
         const expHTML = experience.filter(e => e.company || e.role).map(e => `<div class="resume-entry"><div class="resume-entry-header"><span>${e.company}</span></div><div class="resume-entry-sub"><span>${e.role}</span></div><p style="font-size: 14px; margin-top: 4px; color: #444;">${e.desc || ''}</p></div>`).join('');
-        const projHTML = projects.filter(p => p.name).map(p => `<div class="resume-entry"><div class="resume-entry-header"><span>${p.name}</span></div><p style="font-size: 14px; margin-top: 2px; color: #444;">${p.desc || ''}</p></div>`).join('');
+        const projHTML = projects.filter(p => p.name).map(p => `
+            <div class="resume-entry preview-project-card" style="border:1px solid var(--color-border); border-radius:var(--border-radius); padding:12px; margin-bottom:12px; background:#fff;">
+                <div class="preview-project-header" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <strong style="font-family:var(--font-serif); font-size:16px;">${p.name}</strong>
+                    <div class="preview-project-links" style="font-size:12px; font-family:var(--font-sans);">
+                        ${p.liveUrl ? `<a href="${p.liveUrl}" style="color:var(--color-text-secondary); margin-left:8px; text-decoration:underline;">Live</a>` : ''}
+                        ${p.githubUrl ? `<a href="${p.githubUrl}" style="color:var(--color-text-secondary); margin-left:8px; text-decoration:underline;">GitHub</a>` : ''}
+                    </div>
+                </div>
+                <p style="font-size: 14px; margin-top: 2px; color: #444; font-family:var(--font-sans);">${p.desc || ''}</p>
+                ${p.stack && p.stack.length ? `<div class="resume-skills" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">${p.stack.map(s => `<span class="skill-pill" style="border:1px solid var(--color-border); padding:2px 8px; font-size:11px; border-radius:100px; display:inline-block; font-family:var(--font-sans);">${s}</span>`).join('')}</div>` : ''}
+            </div>
+        `).join('');
         const eduHTML = education.filter(e => e.school).map(e => `<div class="resume-entry"><div class="resume-entry-header"><span>${e.school}</span></div><div class="resume-entry-sub"><span>${e.degree}</span></div></div>`).join('');
-        const skillArr = skills.split(',').map(s => s.trim()).filter(s => s);
-        const skillHTML = skillArr.length ? `<div class="resume-skills">${skillArr.map(s => `<span class="skill-pill">${s}</span>`).join('')}</div>` : '';
+        const skillArr = [...(skills.technical||[]), ...(skills.soft||[]), ...(skills.tools||[])];
+        const skillHTML = Object.entries(skills).filter(([_, arr]) => arr && arr.length).map(([cat, arr]) => 
+            `<div style="margin-bottom:8px;">
+                <strong style="text-transform:capitalize; font-size:12px; font-family:var(--font-sans);">${cat.replace('tools', 'Tools & Tech').replace('technical', 'Technical').replace('soft', 'Soft')}: </strong>
+                <div class="resume-skills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">${arr.map(s => `<span class="skill-pill" style="border:1px solid var(--color-border); padding:2px 8px; font-size:11px; border-radius:100px; font-family:var(--font-sans);">${s}</span>`).join('')}</div>
+            </div>`
+        ).join('');
         const contactArr = [personal.email, personal.phone, personal.location, links.github, links.linkedin].filter(Boolean);
 
         return `<div class="resume-header"><h1>${personal.name || 'Your Name'}</h1><div class="resume-contact">${contactArr.map(c => `<span>${c}</span>`).join(' • ')}</div></div>${section('Summary', summary ? `<p style="font-size: 14px; color:#333;">${summary}</p>` : '')}${section('Experience', expHTML)}${section('Projects', projHTML)}${section('Education', eduHTML)}${section('Skills', skillHTML)}`;
     },
 
     loadSampleData() {
-        this.state = { ...this.state, personal: { name: 'Alex Rivera', email: 'alex.rivera@example.com', phone: '+1 555-0123', location: 'Austin, TX' }, summary: 'Strategic Software Engineer with over 5 years of experience specialized in building cloud-native applications. Proven track record of improving latency by 30% through architectural optimizations. Dedicated to leading mission-critical projects.', experience: [{ company: 'Innovate Tech', role: 'Senior Developer', desc: 'Developed a high-availability microservices architecture.' }], projects: [{ name: 'ATS Engine', desc: 'Optimized the recruitment flow by 25% using a custom scoring algorithm.' }], skills: 'React, Node.js, AWS, Kubernetes, Python, SQL, Docker, Redis', links: { github: 'github.com/alexrivera', linkedin: 'linkedin.com/in/alexrivera' } };
+        this.state = { ...this.state, personal: { name: 'Alex Rivera', email: 'alex.rivera@example.com', phone: '+1 555-0123', location: 'Austin, TX' }, summary: 'Strategic Software Engineer with over 5 years of experience specialized in building cloud-native applications. Proven track record of improving latency by 30% through architectural optimizations. Dedicated to leading mission-critical projects.', experience: [{ company: 'Innovate Tech', role: 'Senior Developer', desc: 'Developed a high-availability microservices architecture.' }], projects: [{ name: 'ATS Engine', desc: 'Optimized the recruitment flow by 25% using a custom scoring algorithm.', stack: ['Node.js', 'React'], liveUrl: 'https://ats.example.com', githubUrl: 'https://github.com/alex/ats', collapsed: false }], skills: { technical: ['React', 'Node.js', 'Python', 'SQL'], soft: ['Strategic Thinking', 'Problem Solving'], tools: ['AWS', 'Kubernetes', 'Docker', 'Redis'] }, links: { github: 'github.com/alexrivera', linkedin: 'linkedin.com/in/alexrivera' } };
         this.saveToStorage();
         this.render();
     }

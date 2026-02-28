@@ -483,7 +483,7 @@ textarea:focus {
 @media print {
     @page {
         margin: 20mm;
-        size: A4;
+        size: auto;
     }
 
     body {
@@ -491,10 +491,16 @@ textarea:focus {
         color: #000 !important;
     }
 
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
     .top-bar,
     .template-tabs,
     .export-actions,
     .toast-container,
+    .validation-warning,
     .builder-grid .form-panel,
     .builder-grid #score-panel-root {
         display: none !important;
@@ -509,6 +515,12 @@ textarea:focus {
         padding: 0 !important;
     }
 
+    .resume-paper * {
+        color: #000 !important;
+        background: transparent !important;
+        border-color: #000 !important;
+    }
+
     .resume-paper {
         width: 100% !important;
         box-shadow: none !important;
@@ -521,9 +533,25 @@ textarea:focus {
 
     .resume-section {
         page-break-inside: avoid;
+        margin-bottom: 24px !important;
     }
 
     .resume-entry {
+        page-break-inside: avoid;
+        margin-bottom: 16px !important;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    .resume-section-title {
+        page-break-after: avoid;
+    }
+
+    p,
+    .skill-pill,
+    .resume-skills {
         page-break-inside: avoid;
     }
 }
